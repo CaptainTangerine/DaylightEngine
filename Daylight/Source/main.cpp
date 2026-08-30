@@ -1,5 +1,5 @@
-#include <Windows.h>
-#include "Window.h"
+#include "pch.h"
+#include "Platform/Window.h"
 
 int APIENTRY wWinMain(
     _In_     HINSTANCE hInstance,
