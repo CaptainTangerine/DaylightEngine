@@ -21,5 +21,4 @@ VS_Output VS_Main(VS_Input input)
 float4 PS_Main(VS_Output input ) : SV_Target 
 {
     return float4(input.color, 1.f);
-
 }

@@ -135,6 +135,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Source\Renderer\Renderer.cpp" />
     <ClCompile Include="Source\Graphics\GfxShader.cpp" />
     <ClCompile Include="Source\main.cpp" />
     <ClCompile Include="Source\pch.cpp">
@@ -145,6 +146,7 @@
     <ClCompile Include="Source\Graphics\GfxDevice.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Source\Renderer\Renderer.h" />
     <ClInclude Include="Source\Core\DelegateHandle.h" />
     <ClInclude Include="Source\Core\MulticastDelegate.h" />
     <ClInclude Include="Source\Graphics\GfxCommon.h" />

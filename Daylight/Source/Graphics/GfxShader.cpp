@@ -3,9 +3,11 @@
 
 #pragma comment(lib, "d3dcompiler.lib")
 
-bool GfxShader::CompileFromFile(ID3D11Device* device, const wchar_t* path, const char* entryPoint, GfxShaderStage _stage)
+bool GfxShader::CompileFromFile(ID3D11Device* device, const wchar_t* _path, const char* _entryPoint, GfxShaderStage _stage)
 {
     stage = _stage;
+    filePath = _path;
+    entryPoint = _entryPoint;
 
     const char* target = (stage == GfxShaderStage::Vertex) ? "vs_5_0" : "ps_5_0";
 
@@ -14,13 +16,12 @@ bool GfxShader::CompileFromFile(ID3D11Device* device, const wchar_t* path, const
     flags |= D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif
 
-    // 3) 컴파일
     ComPtr<ID3DBlob> errorBlob;
     HRESULT hr = D3DCompileFromFile(
-        path,        
+        _path,
         nullptr,     
         nullptr,     
-        entryPoint,  
+        _entryPoint,
         target,      
         flags,
         0,              
@@ -34,6 +35,7 @@ bool GfxShader::CompileFromFile(ID3D11Device* device, const wchar_t* path, const
         {
             OutputDebugStringA((char*)errorBlob->GetBufferPointer());
         }
+
         return false;
     }
 
@@ -68,5 +70,23 @@ void GfxShader::Bind(ID3D11DeviceContext* context) const
     else if (stage == GfxShaderStage::Pixel)
     {
         context->PSSetShader(pixelShader.Get(), nullptr, 0);
+    }
+}
+
+void GfxShader::Recompile(ID3D11Device* device)
+{
+    ComPtr<ID3DBlob> oldBytecode = bytecode;
+    ComPtr<ID3D11VertexShader> oldVertexShader = vertexShader;
+    ComPtr<ID3D11PixelShader> oldPixelShader = pixelShader;
+
+    bytecode.Reset();
+    vertexShader.Reset();
+    pixelShader.Reset();
+
+    if (!CompileFromFile(device, filePath.c_str(), entryPoint.c_str(), stage))
+    {
+        bytecode = oldBytecode;
+        vertexShader = oldVertexShader;
+        pixelShader = oldPixelShader;
     }
 }
