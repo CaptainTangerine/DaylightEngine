@@ -2,12 +2,12 @@
 #include "pch.h"
 
 template<typename... Args>
-class MultiCastDeleagate;
+class MultiCastDelegate;
 
 class DelegateHandle
 {
 	template<typename... Args>
-		friend class MultiCastDeleagate;
+		friend class MultiCastDelegate;
 
 public:
 	DelegateHandle() : id(0) {};

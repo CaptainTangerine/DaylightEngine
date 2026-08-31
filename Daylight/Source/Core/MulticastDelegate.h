@@ -2,7 +2,7 @@
 #include "DelegateHandle.h"
 
 template<typename... Args>
-class MultiCastDeleagate
+class MultiCastDelegate
 {
 public:
 	DelegateHandle Add(std::function<void(Args...)> callback)
@@ -12,7 +12,7 @@ public:
 		return handle;
 	}
 
-	void Remove(const DelegateHandle& handle)
+	bool Remove(const DelegateHandle& handle)
 	{
 		for (size_t i = 0; i < listeners.size(); ++i)
 		{

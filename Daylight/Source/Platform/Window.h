@@ -18,7 +18,7 @@ private:
 	LRESULT HandleMessage(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 public:
-	MultiCastDeleagate<int, int> onResize;
+	MultiCastDelegate<int, int> onResize;
 
 private:
 	HWND hWnd = { };
