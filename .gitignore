@@ -40,6 +40,12 @@ x86/
 # --- Compiled shader blobs (if any) ---
 *.cso
 
+# --- Runtime logs ---
+log.txt
+
+# --- Claude Code ---
+.claude/
+
 # --- OS junk ---
 Thumbs.db
 Desktop.ini
