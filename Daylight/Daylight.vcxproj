@@ -99,6 +99,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Application.h" />
+    <ClInclude Include="Source\CoreTypes.h" />
     <ClInclude Include="Source\Logger.h" />
     <ClInclude Include="Source\pch.h" />
   </ItemGroup>

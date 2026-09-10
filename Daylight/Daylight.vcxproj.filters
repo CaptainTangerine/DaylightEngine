@@ -29,5 +29,8 @@
     <ClInclude Include="Source\Logger.h">
       <Filter>Source</Filter>
     </ClInclude>
+    <ClInclude Include="Source\CoreTypes.h">
+      <Filter>Source</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

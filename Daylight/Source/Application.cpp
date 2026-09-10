@@ -8,8 +8,11 @@
 #include <volk/volk.h>
 #include <vma/vk_mem_alloc.h>
 
+
 namespace Dlight
 {
+	// Vulkan Instance에 콜백함수 제공할 수 있고
+	// 그 콜백이 나중에 생길 문제에 대한 메시지를 받게 된다.
 	VKAPI_ATTR VkBool32 VKAPI_CALL Application::DebugCallback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 		VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -70,9 +73,23 @@ namespace Dlight
 
 		if (!InitializeVulkan())
 		{
+			ShowError("can't create a vulkan instance");
 			return false;
 		}
 
+		if (!InitializeSurface())
+		{
+			ShowError("Can't create a vulkansurface");
+			return false;
+		}
+
+		// 창과 VulkanSurface를 어떤 GPU로 쓸지
+		physicalDevice = FindPhysicalDevice();
+		if (!physicalDevice)
+		{
+			ShowError("Can't find a physical device");
+			return false;
+		}
 		return true;
 	}
 
@@ -103,11 +120,18 @@ namespace Dlight
 
 	void Application::Shutdown()
 	{
+		if (vulkanSurface)
+		{
+			vkDestroySurfaceKHR(vulkanInstance, vulkanSurface, nullptr);
+			vulkanSurface = VK_NULL_HANDLE;
+		}
 
 		if (vulkanInstance)
 		{
 			vkDestroyInstance(vulkanInstance, nullptr);
+			vulkanInstance = VK_NULL_HANDLE;
 		}
+
 		volkFinalize();
 
 		if (window)
@@ -134,18 +158,15 @@ namespace Dlight
 		appInfo.apiVersion = VK_API_VERSION_1_4;
 
 		// VulkanSurface를 만들기 위해 확장자들을 SDL에서 가져옴
-		uint32_t instExtCount = 0;
+		uint32 instExtCount = 0;
 		const char* const* extensions = SDL_Vulkan_GetInstanceExtensions(&instExtCount);
 
 		std::vector<const char*> requestedExtensions
 		{
-			// Vulkan Instance에 콜백함수 제공할 수 있고
-			// 그 콜백이 나중에 생길 문제에 대한 메시지를 받게 된다.
-			// Vulkan Validation 레이어 기능의 일부
 			VK_EXT_DEBUG_UTILS_EXTENSION_NAME
 		};
 
-		for (uint32_t i = 0; i < instExtCount; ++i)
+		for (uint32 i = 0; i < instExtCount; ++i)
 		{
 			requestedExtensions.push_back(extensions[i]);
 		}
@@ -177,9 +198,9 @@ namespace Dlight
 		InstCreatInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 		InstCreatInfo.pNext = &debugInfo;
 		InstCreatInfo.pApplicationInfo = &appInfo;
-		InstCreatInfo.enabledLayerCount = static_cast<uint32_t>(requestedLayers.size());
+		InstCreatInfo.enabledLayerCount = static_cast<uint32>(requestedLayers.size());
 		InstCreatInfo.ppEnabledLayerNames = requestedLayers.data();
-		InstCreatInfo.enabledExtensionCount = static_cast<uint32_t>(requestedExtensions.size());
+		InstCreatInfo.enabledExtensionCount = static_cast<uint32>(requestedExtensions.size());
 		InstCreatInfo.ppEnabledExtensionNames = requestedExtensions.data();
 
 		if (VK_SUCCESS != vkCreateInstance(&InstCreatInfo, nullptr, &vulkanInstance))
@@ -189,5 +210,50 @@ namespace Dlight
 
 		volkLoadInstance(vulkanInstance);
 		return true;
+	}
+
+	bool Application::InitializeSurface()
+	{
+		if (!SDL_Vulkan_CreateSurface(window, vulkanInstance, nullptr, &vulkanSurface))
+		{
+			return false;
+		}
+		return true;
+	}
+
+	VkPhysicalDevice Application::FindPhysicalDevice() const
+	{
+		uint32 deviceCount = 0;
+		vkEnumeratePhysicalDevices(vulkanInstance, &deviceCount, nullptr);
+
+		if (deviceCount == 0)
+		{
+			return VK_NULL_HANDLE;
+		}
+
+		std::vector<VkPhysicalDevice> devices(deviceCount);
+		vkEnumeratePhysicalDevices(vulkanInstance, &deviceCount, devices.data());
+
+		// 첫 번째 GPU를 기본값으로 사용한다.
+		VkPhysicalDevice selectedDevice = devices[0];
+
+		// 외장 GPU가 있으면 우선해서 사용한다.
+		for (VkPhysicalDevice device : devices)
+		{
+			VkPhysicalDeviceProperties properties{};
+			vkGetPhysicalDeviceProperties(device, &properties);
+
+			if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+			{
+				selectedDevice = device;
+				break;
+			}
+		}
+
+		VkPhysicalDeviceProperties selectedProperties{};
+		vkGetPhysicalDeviceProperties(selectedDevice, &selectedProperties);
+		DL_LOG_INFO("Selected Vulkan GPU: ", selectedProperties.deviceName);
+
+		return selectedDevice;
 	}
 }

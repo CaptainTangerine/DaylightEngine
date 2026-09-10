@@ -1,11 +1,9 @@
 #include "pch.h"
 #include "Application.h"
 
-using namespace Dlight;
-
 int main()
 {
-    Application App;
+    Dlight::Application App;
 
     if (App.Initialize())
     {

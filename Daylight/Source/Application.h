@@ -22,6 +22,10 @@ namespace Dlight
 
 	private:
 		bool InitializeVulkan();
+		bool InitializeSurface();
+		VkPhysicalDevice FindPhysicalDevice() const;
+
+
 		void ShowError(const std::string& message) const;
 
 
@@ -41,6 +45,7 @@ namespace Dlight
 
 		// Vulkan Core
 		VkInstance vulkanInstance = { nullptr };
-
+		VkSurfaceKHR vulkanSurface = { nullptr };
+		VkPhysicalDevice physicalDevice = { nullptr };
 	};
 }
