@@ -90,6 +90,12 @@ namespace Dlight
 			ShowError("Can't find a physical device");
 			return false;
 		}
+
+		if (!findGraphicsQueue())
+		{
+			ShowError("Can't find a Compatible graphics queue");
+			return false;
+		}
 		return true;
 	}
 
@@ -255,5 +261,30 @@ namespace Dlight
 		DL_LOG_INFO("Selected Vulkan GPU: ", selectedProperties.deviceName);
 
 		return selectedDevice;
+	}
+
+	bool Application::findGraphicsQueue()
+	{
+		uint32 queueFamilyCount = 0;
+		vkGetPhysicalDeviceQueueFamilyProperties2(physicalDevice, &queueFamilyCount, nullptr);
+		std::vector<VkQueueFamilyProperties2> queueFamilyProps(queueFamilyCount, { VK_STRUCTURE_TYPE_QUEUE_FAMILY_PROPERTIES_2 });
+		vkGetPhysicalDeviceQueueFamilyProperties2(physicalDevice, &queueFamilyCount, queueFamilyProps.data());
+
+		// 큐패밀리중에서 그래픽스에 해당하는 하드웨어를 줄 수 있는지 검사한다.
+		// Presentation?? Surface??
+		for (size_t curFamilyIndex = 0; curFamilyIndex < queueFamilyProps.size(); ++curFamilyIndex)
+		{
+			VkBool32 bHasPresentSupport = VK_FALSE;
+			vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, curFamilyIndex, vulkanSurface, &bHasPresentSupport);
+
+			const auto& props = queueFamilyProps[curFamilyIndex];
+
+			if ((props.queueFamilyProperties.queueFlags & VK_QUEUE_GRAPHICS_BIT) && bHasPresentSupport)
+			{
+				gfxQueueFamilyIndex = curFamilyIndex;
+				return true;
+			}
+		}
+		return false;
 	}
 }
