@@ -91,7 +91,13 @@ namespace Dlight
 			return false;
 		}
 
-		if (!findGraphicsQueue())
+		if (!FindGraphicsQueue())
+		{
+			ShowError("Can't find a Compatible graphics queue");
+			return false;
+		}
+
+		if (!CreateDevice())
 		{
 			ShowError("Can't find a Compatible graphics queue");
 			return false;
@@ -126,10 +132,20 @@ namespace Dlight
 
 	void Application::Shutdown()
 	{
+		if (gfxQueue)
+		{
+
+		}
+
 		if (vulkanSurface)
 		{
 			vkDestroySurfaceKHR(vulkanInstance, vulkanSurface, nullptr);
 			vulkanSurface = VK_NULL_HANDLE;
+		}
+
+		if (device)
+		{
+			vkDestroyDevice(device, nullptr);
 		}
 
 		if (vulkanInstance)
@@ -185,7 +201,7 @@ namespace Dlight
 		};
 
 		// Vulkan Instance 생성 시 함께 넘길 Vulkan 구조체들
-		// 원하는 DebugCallback 함수와 어떤 종류나 심각도 수전을 원하는지
+		// 원하는 DebugCallback 함수와 어떤 종류나 심각도 수준을 원하는지
 		VkDebugUtilsMessengerCreateInfoEXT debugInfo{};
 		debugInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
 		debugInfo.messageSeverity =
@@ -196,7 +212,7 @@ namespace Dlight
 			VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
 			VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 		debugInfo.pfnUserCallback = DebugCallback;
-		
+
 
 		// sTpye : 이 메모리가 어떤 vulkan의 구조체인지
 		// pNext : 그 구조체의 추가 옵션을 링크드 리스트 형태로 관리
@@ -263,7 +279,7 @@ namespace Dlight
 		return selectedDevice;
 	}
 
-	bool Application::findGraphicsQueue()
+	bool Application::FindGraphicsQueue()
 	{
 		uint32 queueFamilyCount = 0;
 		vkGetPhysicalDeviceQueueFamilyProperties2(physicalDevice, &queueFamilyCount, nullptr);
@@ -286,5 +302,86 @@ namespace Dlight
 			}
 		}
 		return false;
+	}
+	bool Application::CreateDevice()
+	{
+		// Query Supported Features
+		VkPhysicalDeviceVulkan14Features supportedFeatures14{};
+		supportedFeatures14.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
+		supportedFeatures14.pNext = nullptr;
+
+		VkPhysicalDeviceVulkan13Features supportedFeatures13{};
+		supportedFeatures13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+		supportedFeatures13.pNext = &supportedFeatures14;
+
+		VkPhysicalDeviceVulkan12Features supportedFeatures12{};
+		supportedFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+		supportedFeatures12.pNext = &supportedFeatures13;
+
+		VkPhysicalDeviceFeatures2 supportedFeatures{};
+		supportedFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+		supportedFeatures.pNext = &supportedFeatures12;
+
+		vkGetPhysicalDeviceFeatures2(physicalDevice, &supportedFeatures);
+
+		if (!supportedFeatures13.dynamicRendering ||
+			!supportedFeatures13.synchronization2 ||
+			!supportedFeatures12.timelineSemaphore)
+		{
+			ShowError("Physical device doesn't meet the feature requirement");
+			return false;
+		}
+		// 지원 여부만 확인하고 원하는 기능만 활성화한 Device를 가져오기 위해 세팅
+		VkPhysicalDeviceVulkan14Features enabledFeatures14{};
+		enabledFeatures14.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES;
+		enabledFeatures14.pNext = nullptr;
+
+		VkPhysicalDeviceVulkan13Features enabledFeatures13{};
+		enabledFeatures13.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES;
+		enabledFeatures13.pNext = &enabledFeatures14;
+		enabledFeatures13.synchronization2 = VK_TRUE;
+		enabledFeatures13.dynamicRendering = VK_TRUE;
+
+		VkPhysicalDeviceVulkan12Features enabledFeatures12{};
+		enabledFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+		enabledFeatures12.pNext = &enabledFeatures13;
+		enabledFeatures12.timelineSemaphore = VK_TRUE;
+
+		VkPhysicalDeviceFeatures2 enabledFeatures{};
+		enabledFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+		enabledFeatures.pNext = &enabledFeatures12;
+
+		std::vector<float> queuePriorities{ 1.f };
+		VkDeviceQueueCreateInfo gfxQueueInfo{};
+		gfxQueueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		gfxQueueInfo.queueFamilyIndex = gfxQueueFamilyIndex;
+		gfxQueueInfo.queueCount = 1;
+		gfxQueueInfo.pQueuePriorities = queuePriorities.data();
+
+		const std::vector<const char*> deviceExtensions{ VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+
+		VkDeviceCreateInfo devCreateInfo{};
+		devCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+		devCreateInfo.pNext = &enabledFeatures;
+		devCreateInfo.queueCreateInfoCount = 1;
+		devCreateInfo.pQueueCreateInfos = &gfxQueueInfo;
+		devCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+		devCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
+		devCreateInfo.pEnabledFeatures = nullptr; 
+
+		// GPU 자원에 접근하는데 사용될 VkDevice 객체생성
+		if (VK_SUCCESS != vkCreateDevice(physicalDevice, &devCreateInfo, nullptr, &device))
+		{
+			return false;
+		}
+
+		vkGetDeviceQueue(device, gfxQueueFamilyIndex, 0, &gfxQueue);
+		if (!gfxQueue)
+		{
+			ShowError("Could't get the graphics queue");
+			return false;
+		}
+
+		return true;
 	}
 }

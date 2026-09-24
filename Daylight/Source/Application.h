@@ -24,7 +24,8 @@ namespace Dlight
 		bool InitializeVulkan();
 		bool InitializeSurface();
 		VkPhysicalDevice FindPhysicalDevice() const;
-		bool findGraphicsQueue();
+		bool FindGraphicsQueue();
+		bool CreateDevice();
 
 		void ShowError(const std::string& message) const;
 
@@ -47,6 +48,7 @@ namespace Dlight
 		VkInstance vulkanInstance = { nullptr };
 		VkSurfaceKHR vulkanSurface = { nullptr };
 		VkPhysicalDevice physicalDevice = { nullptr };
+		VkDevice device = { nullptr };
 
 		// Queue Related
 		uint32 gfxQueueFamilyIndex = UINT32_MAX;
