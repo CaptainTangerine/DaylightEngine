@@ -1,19 +1,16 @@
 #include "pch.h"
-#include "Application.h"
-#include "Logger.h"
+#include "VulkanDevice.h"
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 #define VOLK_IMPLEMENTATION
 #include <volk/volk.h>
-#include <vma/vk_mem_alloc.h>
-
 
 namespace Dlight
 {
 	// Vulkan Instance에 콜백함수 제공할 수 있고
 	// 그 콜백이 나중에 생길 문제에 대한 메시지를 받게 된다.
-	VKAPI_ATTR VkBool32 VKAPI_CALL Application::DebugCallback(
+	VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDevice::DebugCallback(
 		VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 		VkDebugUtilsMessageTypeFlagsEXT messageType,
 		const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
@@ -43,43 +40,17 @@ namespace Dlight
 		return VK_FALSE;
 	}
 
-	void Application::ShowError(const std::string& message) const
+	bool VulkanDevice::Initialize(SDL_Window* window)
 	{
-		DL_LOG_ERROR(message);
-		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Daylight - Error", message.c_str(), window);
-	}
-
-	bool Application::Initialize()
-	{
-		if (!SDL_InitSubSystem(SDL_INIT_VIDEO))
-		{
-			ShowError(SDL_GetError());
-			return false;
-		}
-
-		window = SDL_CreateWindow(
-			"Daylight",
-			static_cast<int>(width),
-			static_cast<int>(height),
-			SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE);
-
-		if (!window)
-		{
-			ShowError(SDL_GetError());
-			return false;
-		}
-
-		DL_LOG_INFO("Window created: ", width, "x", height);
-
 		if (!InitializeVulkan())
 		{
-			ShowError("can't create a vulkan instance");
+			DL_LOG_ERROR("can't create a vulkan instance");
 			return false;
 		}
 
-		if (!InitializeSurface())
+		if (!InitializeSurface(window))
 		{
-			ShowError("Can't create a vulkansurface");
+			DL_LOG_ERROR("Can't create a vulkansurface");
 			return false;
 		}
 
@@ -87,54 +58,30 @@ namespace Dlight
 		physicalDevice = FindPhysicalDevice();
 		if (!physicalDevice)
 		{
-			ShowError("Can't find a physical device");
+			DL_LOG_ERROR("Can't find a physical device");
 			return false;
 		}
 
 		if (!FindGraphicsQueue())
 		{
-			ShowError("Can't find a Compatible graphics queue");
+			DL_LOG_ERROR("Can't find a Compatible graphics queue");
 			return false;
 		}
 
 		if (!CreateDevice())
 		{
-			ShowError("Can't find a Compatible graphics queue");
+			DL_LOG_ERROR("Can't create a logical device or get its graphics queue");
 			return false;
 		}
 		return true;
 	}
 
-	void Application::Run()
+	void VulkanDevice::Shutdown()
 	{
-		bRunning = true;
-		while (bRunning)
+		if (device)
 		{
-			SDL_Event event{ 0 };
-
-			while (SDL_PollEvent(&event))
-			{
-				if (event.type == SDL_EVENT_QUIT)
-				{
-					bRunning = false;
-					break;
-				}
-				else if (event.type == SDL_EVENT_WINDOW_RESIZED)
-				{
-					width = event.window.data1;
-					height = event.window.data2;
-					break;
-				}
-
-			}
-		}
-	}
-
-	void Application::Shutdown()
-	{
-		if (gfxQueue)
-		{
-
+			vkDestroyDevice(device, nullptr);
+			device = VK_NULL_HANDLE;
 		}
 
 		if (vulkanSurface)
@@ -143,35 +90,34 @@ namespace Dlight
 			vulkanSurface = VK_NULL_HANDLE;
 		}
 
-		if (device)
-		{
-			vkDestroyDevice(device, nullptr);
-		}
-
 		if (vulkanInstance)
 		{
 			vkDestroyInstance(vulkanInstance, nullptr);
 			vulkanInstance = VK_NULL_HANDLE;
 		}
 
-		volkFinalize();
-
-		if (window)
+		if (volkInitialized)
 		{
-			SDL_DestroyWindow(window);
+			volkFinalize();
+			volkInitialized = false;
 		}
 
-		SDL_Quit();
+		physicalDevice = VK_NULL_HANDLE;
+		gfxQueue = VK_NULL_HANDLE;
+		gfxQueueFamilyIndex = UINT32_MAX;
+
 	}
 
-	bool Application::InitializeVulkan()
+	bool VulkanDevice::InitializeVulkan()
 	{
 		// Volk : Vulkan Instance로부터 Vulkan함수 포인터를 로드해주는 라이브러리
 		if (VK_SUCCESS != volkInitialize())
 		{
-			ShowError("Error Initializeing Volk");
+			DL_LOG_ERROR("Error Initializeing Volk");
 			return false;
 		}
+
+		volkInitialized = true;
 
 		VkApplicationInfo appInfo{};
 		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -213,7 +159,6 @@ namespace Dlight
 			VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
 		debugInfo.pfnUserCallback = DebugCallback;
 
-
 		// sTpye : 이 메모리가 어떤 vulkan의 구조체인지
 		// pNext : 그 구조체의 추가 옵션을 링크드 리스트 형태로 관리
 		VkInstanceCreateInfo InstCreatInfo{};
@@ -227,6 +172,7 @@ namespace Dlight
 
 		if (VK_SUCCESS != vkCreateInstance(&InstCreatInfo, nullptr, &vulkanInstance))
 		{
+			DL_LOG_ERROR("Failed to create Vulkan instance");
 			return false;
 		}
 
@@ -234,16 +180,17 @@ namespace Dlight
 		return true;
 	}
 
-	bool Application::InitializeSurface()
+	bool VulkanDevice::InitializeSurface(SDL_Window* window)
 	{
 		if (!SDL_Vulkan_CreateSurface(window, vulkanInstance, nullptr, &vulkanSurface))
 		{
+			DL_LOG_ERROR("Failed to create Vulkan surface: ", SDL_GetError());
 			return false;
 		}
 		return true;
 	}
 
-	VkPhysicalDevice Application::FindPhysicalDevice() const
+	VkPhysicalDevice VulkanDevice::FindPhysicalDevice() const
 	{
 		uint32 deviceCount = 0;
 		vkEnumeratePhysicalDevices(vulkanInstance, &deviceCount, nullptr);
@@ -279,7 +226,7 @@ namespace Dlight
 		return selectedDevice;
 	}
 
-	bool Application::FindGraphicsQueue()
+	bool VulkanDevice::FindGraphicsQueue()
 	{
 		uint32 queueFamilyCount = 0;
 		vkGetPhysicalDeviceQueueFamilyProperties2(physicalDevice, &queueFamilyCount, nullptr);
@@ -303,7 +250,7 @@ namespace Dlight
 		}
 		return false;
 	}
-	bool Application::CreateDevice()
+	bool VulkanDevice::CreateDevice()
 	{
 		// Query Supported Features
 		VkPhysicalDeviceVulkan14Features supportedFeatures14{};
@@ -328,7 +275,7 @@ namespace Dlight
 			!supportedFeatures13.synchronization2 ||
 			!supportedFeatures12.timelineSemaphore)
 		{
-			ShowError("Physical device doesn't meet the feature requirement");
+			DL_LOG_ERROR("Physical device doesn't meet the feature requirement");
 			return false;
 		}
 		// 지원 여부만 확인하고 원하는 기능만 활성화한 Device를 가져오기 위해 세팅
@@ -372,13 +319,14 @@ namespace Dlight
 		// GPU 자원에 접근하는데 사용될 VkDevice 객체생성
 		if (VK_SUCCESS != vkCreateDevice(physicalDevice, &devCreateInfo, nullptr, &device))
 		{
+			DL_LOG_ERROR("Failed to create Vulkan logical device");
 			return false;
 		}
 
 		vkGetDeviceQueue(device, gfxQueueFamilyIndex, 0, &gfxQueue);
 		if (!gfxQueue)
 		{
-			ShowError("Could't get the graphics queue");
+			DL_LOG_ERROR("Could't get the graphics queue");
 			return false;
 		}
 

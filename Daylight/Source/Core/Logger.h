@@ -1,9 +1,5 @@
 #pragma once
 
-#include <sstream>
-#include <string>
-#include <utility>
-
 namespace Dlight
 {
 	enum class LogLevel

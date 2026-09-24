@@ -1,11 +1,9 @@
 #include "pch.h"
-#include "Logger.h"
 
 #include <iomanip>
 #include <chrono>
 #include <ctime>
 #include <fstream>
-#include <iostream>
 #include <mutex>
 
 namespace Dlight

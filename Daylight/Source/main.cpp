@@ -1,16 +1,16 @@
 #include "pch.h"
-#include "Application.h"
+#include "Core/Engine.h"
 
 int main()
 {
-    Dlight::Application App;
+    Dlight::Engine engine;
 
-    if (App.Initialize())
+    if (engine.Initialize())
     {
-        App.Run();
+        engine.Run();
     }
 
-    App.Shutdown();
+    engine.Shutdown();
 
     return 0;
 }

@@ -1,8 +1,5 @@
 #pragma once
 
-#include <cstddef>
-#include <cstdint>
-
 namespace Dlight
 {
 	using int8   = std::int8_t;
