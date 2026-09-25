@@ -1,10 +1,14 @@
 #include "pch.h"
+
+#define VOLK_IMPLEMENTATION
+#define VMA_IMPLEMENTATION
+
 #include "VulkanDevice.h"
 
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
-#define VOLK_IMPLEMENTATION
-#include <volk/volk.h>
+
+#include "VulkanSwapchain.h"
 
 namespace Dlight
 {
@@ -40,7 +44,15 @@ namespace Dlight
 		return VK_FALSE;
 	}
 
-	bool VulkanDevice::Initialize(SDL_Window* window)
+
+	VulkanDevice::VulkanDevice() = default;
+
+	VulkanDevice::~VulkanDevice()
+	{
+		Shutdown();
+	}
+
+	bool VulkanDevice::Initialize(SDL_Window* window, uint32_t width, uint32_t height)
 	{
 		if (!InitializeVulkan())
 		{
@@ -73,11 +85,30 @@ namespace Dlight
 			DL_LOG_ERROR("Can't create a logical device or get its graphics queue");
 			return false;
 		}
+
+		swapchain = std::make_unique<VulkanSwapchain>(*this);
+		if (!swapchain->Initialize(width, height))
+		{
+			DL_LOG_ERROR("Can't initialize Vulkan swapchain");
+			return false;
+		}
+
 		return true;
 	}
 
 	void VulkanDevice::Shutdown()
 	{
+		if (swapchain)
+		{
+			swapchain.reset();
+		}
+
+		if (vmaAllocator)
+		{
+			vmaDestroyAllocator(vmaAllocator);
+			vmaAllocator = nullptr;
+		}
+
 		if (device)
 		{
 			vkDestroyDevice(device, nullptr);
@@ -110,29 +141,31 @@ namespace Dlight
 
 	bool VulkanDevice::InitializeVulkan()
 	{
+#ifdef NDEBUG
+		bool useValidation = false;
+#else
+		bool useValidation = true;
+#endif // !DEBUG
+
 		// Volk : Vulkan Instance로부터 Vulkan함수 포인터를 로드해주는 라이브러리
 		if (VK_SUCCESS != volkInitialize())
 		{
 			DL_LOG_ERROR("Error Initializeing Volk");
 			return false;
 		}
-
 		volkInitialized = true;
 
 		VkApplicationInfo appInfo{};
 		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 		appInfo.pApplicationName = "Daylight";
 		appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-		appInfo.apiVersion = VK_API_VERSION_1_4;
+		appInfo.apiVersion = VulkanVersion;
 
 		// VulkanSurface를 만들기 위해 확장자들을 SDL에서 가져옴
 		uint32 instExtCount = 0;
 		const char* const* extensions = SDL_Vulkan_GetInstanceExtensions(&instExtCount);
 
-		std::vector<const char*> requestedExtensions
-		{
-			VK_EXT_DEBUG_UTILS_EXTENSION_NAME
-		};
+		std::vector<const char*> requestedExtensions{};
 
 		for (uint32 i = 0; i < instExtCount; ++i)
 		{
@@ -140,11 +173,14 @@ namespace Dlight
 		}
 
 		// 실행중에 어떤 레이어를 활성화 할지 Vulkan에 알려줘야한다.
-		std::vector<const char*> requestedLayers
+		std::vector<const char*> requestedLayers{};
+
+		if (useValidation)
 		{
+			requestedExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 			// Validation Layer
-			"VK_LAYER_KHRONOS_validation"
-		};
+			requestedLayers.push_back("VK_LAYER_KHRONOS_validation");
+		}
 
 		// Vulkan Instance 생성 시 함께 넘길 Vulkan 구조체들
 		// 원하는 DebugCallback 함수와 어떤 종류나 심각도 수준을 원하는지
@@ -163,7 +199,10 @@ namespace Dlight
 		// pNext : 그 구조체의 추가 옵션을 링크드 리스트 형태로 관리
 		VkInstanceCreateInfo InstCreatInfo{};
 		InstCreatInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-		InstCreatInfo.pNext = &debugInfo;
+		if (useValidation)
+		{
+			InstCreatInfo.pNext = &debugInfo;
+		}
 		InstCreatInfo.pApplicationInfo = &appInfo;
 		InstCreatInfo.enabledLayerCount = static_cast<uint32>(requestedLayers.size());
 		InstCreatInfo.ppEnabledLayerNames = requestedLayers.data();
@@ -234,8 +273,7 @@ namespace Dlight
 		vkGetPhysicalDeviceQueueFamilyProperties2(physicalDevice, &queueFamilyCount, queueFamilyProps.data());
 
 		// 큐패밀리중에서 그래픽스에 해당하는 하드웨어를 줄 수 있는지 검사한다.
-		// Presentation?? Surface??
-		for (size_t curFamilyIndex = 0; curFamilyIndex < queueFamilyProps.size(); ++curFamilyIndex)
+		for (uint32 curFamilyIndex = 0; curFamilyIndex < queueFamilyProps.size(); ++curFamilyIndex)
 		{
 			VkBool32 bHasPresentSupport = VK_FALSE;
 			vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, curFamilyIndex, vulkanSurface, &bHasPresentSupport);
@@ -327,6 +365,26 @@ namespace Dlight
 		if (!gfxQueue)
 		{
 			DL_LOG_ERROR("Could't get the graphics queue");
+			return false;
+		}
+
+		return true;
+	}
+	bool VulkanDevice::InitializeVMA()
+	{
+		VmaVulkanFunctions vmaFuncInfo{};
+		VmaAllocatorCreateInfo vmaAllocInfo{};
+		vmaAllocInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+		vmaAllocInfo.physicalDevice = physicalDevice;
+		vmaAllocInfo.device = device;
+		vmaAllocInfo.pVulkanFunctions = &vmaFuncInfo;
+		vmaAllocInfo.instance = vulkanInstance;
+		vmaAllocInfo.vulkanApiVersion = VulkanVersion;
+
+		vmaImportVulkanFunctionsFromVolk(&vmaAllocInfo, &vmaFuncInfo);
+
+		if (VK_SUCCESS != vmaCreateAllocator(&vmaAllocInfo, &vmaAllocator))
+		{
 			return false;
 		}
 

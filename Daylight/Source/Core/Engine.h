@@ -1,16 +1,16 @@
 #pragma once
 
-#include "Graphics/Vulkan/VulkanDevice.h"
-
 struct SDL_Window;
 
 namespace Dlight
 {
+	class  VulkanDevice;
+
 	class Engine
 	{
 	public:
-		Engine() = default;
-		~Engine() = default;
+		Engine();
+		~Engine();
 
 	public:
 		bool Initialize();
@@ -27,6 +27,6 @@ namespace Dlight
 		uint32 height = { 1080 };
 		bool	 bRunning = { false };
 
-		VulkanDevice vulkanDevice;
+		std::unique_ptr<VulkanDevice> vulkanDevice = { nullptr };
 	};
 }

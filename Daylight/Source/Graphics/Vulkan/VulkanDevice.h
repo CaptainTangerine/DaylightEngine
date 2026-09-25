@@ -1,15 +1,30 @@
 #pragma once
 
+#include <memory>
+
 #include <vulkan/vulkan.h>
+#include <Volk/volk.h>
+#include <vma/vk_mem_alloc.h>
 
 struct SDL_Window;
 
 namespace Dlight
 {
+	class VulkanSwapchain;
+
 	class VulkanDevice
 	{
+		constexpr static uint32   VulkanVersion = { VK_API_VERSION_1_4 };
+		constexpr static uint32_t MaxFramesInFlight = { 2 };
+		constexpr static VkFormat SwapchainFormat = { VK_FORMAT_B8G8R8A8_SRGB };
+		constexpr static VkFormat DepthFormat = { VK_FORMAT_D32_SFLOAT };
+
 	public:
-		bool Initialize(SDL_Window* window);
+		VulkanDevice();
+		~VulkanDevice();
+
+	public:
+		bool Initialize(SDL_Window* window, uint32_t width, uint32_t height);
 		void Shutdown();
 
 		VkInstance GetInstance() const { return vulkanInstance; }
@@ -25,6 +40,7 @@ namespace Dlight
 		VkPhysicalDevice FindPhysicalDevice() const;
 		bool FindGraphicsQueue();
 		bool CreateDevice();
+		bool InitializeVMA();
 
 		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
 			VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -33,6 +49,8 @@ namespace Dlight
 			void* pUserData);
 
 	private:
+		bool volkInitialized = { false };
+
 		// Vulkan Core
 		VkInstance vulkanInstance = { VK_NULL_HANDLE };
 		VkSurfaceKHR vulkanSurface = { VK_NULL_HANDLE };
@@ -40,9 +58,14 @@ namespace Dlight
 		VkDevice device = { VK_NULL_HANDLE };
 
 		// Queue Related
-		uint32 gfxQueueFamilyIndex = UINT32_MAX;
-		VkQueue gfxQueue = VK_NULL_HANDLE;
+		uint32 gfxQueueFamilyIndex = { UINT32_MAX } ;
+		VkQueue gfxQueue = { VK_NULL_HANDLE };
 
-		bool volkInitialized = false;
+		// Vulkan Memory Allocater
+		VmaAllocator vmaAllocator = { nullptr };
+
+		// Swapchain
+		std::unique_ptr<VulkanSwapchain> swapchain;
+
 	};
 }

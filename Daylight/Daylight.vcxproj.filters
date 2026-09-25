@@ -24,6 +24,7 @@
     <ClCompile Include="Source\Core\Logger.cpp">
       <Filter>Source\Core</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Graphics\Vulkan\VulkanSwapchain.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Graphics\Vulkan\VulkanDevice.h">
@@ -41,5 +42,6 @@
     <ClInclude Include="Source\CoreTypes.h">
       <Filter>Source</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Graphics\Vulkan\VulkanSwapchain.h" />
   </ItemGroup>
 </Project>

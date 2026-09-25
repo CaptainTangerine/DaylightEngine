@@ -97,6 +97,7 @@
     <ClCompile Include="Source\pch.cpp">
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Source\Graphics\Vulkan\VulkanSwapchain.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Core\Engine.h" />
@@ -104,6 +105,7 @@
     <ClInclude Include="Source\CoreTypes.h" />
     <ClInclude Include="Source\Core\Logger.h" />
     <ClInclude Include="Source\pch.h" />
+    <ClInclude Include="Source\Graphics\Vulkan\VulkanSwapchain.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

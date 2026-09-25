@@ -3,6 +3,8 @@
 
 #include <SDL3/SDL.h>
 
+#include <Graphics/Vulkan/VulkanDevice.h>
+
 namespace Dlight
 {
 	void Engine::ShowError(const std::string& message) const
@@ -10,6 +12,9 @@ namespace Dlight
 		DL_LOG_ERROR(message);
 		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Daylight - Error", message.c_str(), window);
 	}
+
+	Engine::Engine() = default;
+	Engine::~Engine() = default;
 
 	bool Engine::Initialize()
 	{
@@ -33,11 +38,22 @@ namespace Dlight
 
 		DL_LOG_INFO("Window created: ", width, "x", height);
 
-		if (!vulkanDevice.Initialize(window))
+		vulkanDevice = std::make_unique<VulkanDevice>();
+
+		int pixelWidth = 0;
+		int pixelHeight = 0;
+		if (!SDL_GetWindowSizeInPixels(window, &pixelWidth, &pixelHeight))
+		{
+			ShowError(SDL_GetError());
+			return false;
+		}
+
+		if (!vulkanDevice->Initialize(window, static_cast<uint32>(pixelWidth), static_cast<uint32>(pixelHeight)))
 		{
 			ShowError("Can't initialize Vulkan device");
 			return false;
 		}
+
 		return true;
 	}
 
@@ -68,7 +84,7 @@ namespace Dlight
 
 	void Engine::Shutdown()
 	{
-		vulkanDevice.Shutdown();
+		vulkanDevice.reset();
 
 		if (window)
 		{
