@@ -25,6 +25,7 @@
       <Filter>Source\Core</Filter>
     </ClCompile>
     <ClCompile Include="Source\Graphics\Vulkan\VulkanSwapchain.cpp" />
+    <ClCompile Include="Source\Rendering\ShaderCompiler.cpp" />
     <ClCompile Include="Source\Rendering\Renderer.cpp" /><ClCompile Include="..\External\SimpleMath\SimpleMath.cpp"><Filter>External\SimpleMath</Filter></ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -44,6 +45,7 @@
       <Filter>Source</Filter>
     </ClInclude>
     <ClInclude Include="Source\Graphics\Vulkan\VulkanSwapchain.h" />
+    <ClInclude Include="Source\Rendering\ShaderCompiler.h" />
     <ClInclude Include="Source\Rendering\Renderer.h" /><ClInclude Include="Source\Math\MathTypes.h"><Filter>Source\Math</Filter></ClInclude><ClInclude Include="..\External\SimpleMath\SimpleMath.h"><Filter>External\SimpleMath</Filter></ClInclude>
   </ItemGroup>
 </Project>

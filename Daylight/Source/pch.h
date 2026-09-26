@@ -5,6 +5,7 @@
 // STL
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -13,6 +14,11 @@
 
 
 #include <memory>
+
+// Windows COM
+#include <wrl/client.h>
+using Microsoft::WRL::ComPtr;
+
 
 #include "CoreTypes.h"
 #include "Math/MathTypes.h"

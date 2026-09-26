@@ -58,11 +58,12 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(VULKAN_SDK)\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>SDL3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>SDL3.lib;dxcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /Y /D "$(VULKAN_SDK)\Bin\SDL3.dll" "$(OutDir)"</Command>
-      <Message>Copying SDL3.dll to output directory</Message>
+      <Command>xcopy /Y /D "$(VULKAN_SDK)\Bin\SDL3.dll" "$(OutDir)"
+xcopy /Y /D "$(VULKAN_SDK)\Bin\dxcompiler.dll" "$(OutDir)"</Command>
+      <Message>Copying SDL3.dll and dxcompiler.dll to output directory</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -82,17 +83,19 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalLibraryDirectories>$(VULKAN_SDK)\Lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>SDL3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>SDL3.lib;dxcompiler.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy /Y /D "$(VULKAN_SDK)\Bin\SDL3.dll" "$(OutDir)"</Command>
-      <Message>Copying SDL3.dll to output directory</Message>
+      <Command>xcopy /Y /D "$(VULKAN_SDK)\Bin\SDL3.dll" "$(OutDir)"
+xcopy /Y /D "$(VULKAN_SDK)\Bin\dxcompiler.dll" "$(OutDir)"</Command>
+      <Message>Copying SDL3.dll and dxcompiler.dll to output directory</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\External\SimpleMath\SimpleMath.cpp">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="Source\Rendering\ShaderCompiler.cpp" />
     <ClCompile Include="Source\Rendering\Renderer.cpp" />
     <ClCompile Include="Source\Core\Engine.cpp" />
     <ClCompile Include="Source\Graphics\Vulkan\VulkanDevice.cpp" />
@@ -106,6 +109,7 @@
   <ItemGroup>
     <ClInclude Include="Source\Math\MathTypes.h" />
     <ClInclude Include="..\External\SimpleMath\SimpleMath.h" />
+    <ClInclude Include="Source\Rendering\ShaderCompiler.h" />
     <ClInclude Include="Source\Rendering\Renderer.h" />
     <ClInclude Include="Source\Core\Engine.h" />
     <ClInclude Include="Source\Graphics\Vulkan\VulkanDevice.h" />
