@@ -52,7 +52,7 @@ namespace Dlight
 		Shutdown();
 	}
 
-	bool VulkanDevice::Initialize(SDL_Window* window, uint32_t width, uint32_t height)
+	bool VulkanDevice::Initialize(SDL_Window* window, uint32 width, uint32 height)
 	{
 		if (!InitializeVulkan())
 		{
@@ -159,7 +159,7 @@ namespace Dlight
 		appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
 		appInfo.pApplicationName = "Daylight";
 		appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-		appInfo.apiVersion = VulkanVersion;
+		appInfo.apiVersion = vulkanVersion;
 
 		// VulkanSurface를 만들기 위해 확장자들을 SDL에서 가져옴
 		uint32 instExtCount = 0;
@@ -350,7 +350,7 @@ namespace Dlight
 		devCreateInfo.pNext = &enabledFeatures;
 		devCreateInfo.queueCreateInfoCount = 1;
 		devCreateInfo.pQueueCreateInfos = &gfxQueueInfo;
-		devCreateInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
+		devCreateInfo.enabledExtensionCount = static_cast<uint32>(deviceExtensions.size());
 		devCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
 		devCreateInfo.pEnabledFeatures = nullptr; 
 
@@ -379,7 +379,7 @@ namespace Dlight
 		vmaAllocInfo.device = device;
 		vmaAllocInfo.pVulkanFunctions = &vmaFuncInfo;
 		vmaAllocInfo.instance = vulkanInstance;
-		vmaAllocInfo.vulkanApiVersion = VulkanVersion;
+		vmaAllocInfo.vulkanApiVersion = vulkanVersion;
 
 		vmaImportVulkanFunctionsFromVolk(&vmaAllocInfo, &vmaFuncInfo);
 

@@ -9,5 +9,8 @@
 #include <utility>
 #include <vector>
 
+
+#include <memory>
+
 #include "CoreTypes.h"
 #include "Core/Logger.h"

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <memory>
-
 #include <vulkan/vulkan.h>
 #include <Volk/volk.h>
 #include <vma/vk_mem_alloc.h>
@@ -14,24 +12,21 @@ namespace Dlight
 
 	class VulkanDevice
 	{
-		constexpr static uint32   VulkanVersion = { VK_API_VERSION_1_4 };
-		constexpr static uint32_t MaxFramesInFlight = { 2 };
-		constexpr static VkFormat SwapchainFormat = { VK_FORMAT_B8G8R8A8_SRGB };
-		constexpr static VkFormat DepthFormat = { VK_FORMAT_D32_SFLOAT };
+		constexpr static uint32   vulkanVersion = { VK_API_VERSION_1_4 };
 
 	public:
 		VulkanDevice();
 		~VulkanDevice();
 
 	public:
-		bool Initialize(SDL_Window* window, uint32_t width, uint32_t height);
+		bool Initialize(SDL_Window* window, uint32 width, uint32 height);
 		void Shutdown();
 
 		VkInstance GetInstance() const { return vulkanInstance; }
 		VkPhysicalDevice GetPhysicalDevice() const { return physicalDevice; }
 		VkDevice GetDevice() const { return device; }
 		VkQueue GetGraphicsQueue() const { return gfxQueue; }
-		uint32_t GetGraphicsQueueFamilyIndex() const { return gfxQueueFamilyIndex; }
+		uint32 GetGraphicsQueueFamilyIndex() const { return gfxQueueFamilyIndex; }
 		VkSurfaceKHR GetSurface() const { return vulkanSurface; }
 
 	private:
