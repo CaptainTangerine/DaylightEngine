@@ -25,6 +25,7 @@
       <Filter>Source\Core</Filter>
     </ClCompile>
     <ClCompile Include="Source\Graphics\Vulkan\VulkanSwapchain.cpp" />
+    <ClCompile Include="Source\Rendering\Renderer.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Graphics\Vulkan\VulkanDevice.h">
@@ -43,5 +44,6 @@
       <Filter>Source</Filter>
     </ClInclude>
     <ClInclude Include="Source\Graphics\Vulkan\VulkanSwapchain.h" />
+    <ClInclude Include="Source\Rendering\Renderer.h" />
   </ItemGroup>
 </Project>

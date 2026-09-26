@@ -4,7 +4,6 @@
 #define VMA_IMPLEMENTATION
 
 #include "VulkanDevice.h"
-
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 
@@ -45,25 +44,23 @@ namespace Dlight
 	}
 
 
-	VulkanDevice::VulkanDevice() = default;
-
 	VulkanDevice::~VulkanDevice()
 	{
 		Shutdown();
 	}
 
-	bool VulkanDevice::Initialize(SDL_Window* window, uint32 width, uint32 height)
+	VulkanDevice::VulkanDevice(SDL_Window* window, uint32 width, uint32 height)
 	{
 		if (!InitializeVulkan())
 		{
 			DL_LOG_ERROR("can't create a vulkan instance");
-			return false;
+			std::abort();
 		}
 
 		if (!InitializeSurface(window))
 		{
 			DL_LOG_ERROR("Can't create a vulkansurface");
-			return false;
+			std::abort();
 		}
 
 		// 창과 VulkanSurface를 어떤 GPU로 쓸지
@@ -71,29 +68,28 @@ namespace Dlight
 		if (!physicalDevice)
 		{
 			DL_LOG_ERROR("Can't find a physical device");
-			return false;
+			std::abort();
 		}
 
 		if (!FindGraphicsQueue())
 		{
 			DL_LOG_ERROR("Can't find a Compatible graphics queue");
-			return false;
+			std::abort();
 		}
 
 		if (!CreateDevice())
 		{
 			DL_LOG_ERROR("Can't create a logical device or get its graphics queue");
-			return false;
+			std::abort();
 		}
 
-		swapchain = std::make_unique<VulkanSwapchain>(*this);
-		if (!swapchain->Initialize(width, height))
+		if (!InitializeVMA())
 		{
-			DL_LOG_ERROR("Can't initialize Vulkan swapchain");
-			return false;
+			DL_LOG_ERROR("Failed to initialize Vulkan memory allocator");
+			std::abort();
 		}
 
-		return true;
+		swapchain = std::make_unique<VulkanSwapchain>(*this, width, height);
 	}
 
 	void VulkanDevice::Shutdown()
@@ -374,7 +370,7 @@ namespace Dlight
 	{
 		VmaVulkanFunctions vmaFuncInfo{};
 		VmaAllocatorCreateInfo vmaAllocInfo{};
-		vmaAllocInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+		vmaAllocInfo.flags = 0;
 		vmaAllocInfo.physicalDevice = physicalDevice;
 		vmaAllocInfo.device = device;
 		vmaAllocInfo.pVulkanFunctions = &vmaFuncInfo;

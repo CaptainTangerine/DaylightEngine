@@ -90,6 +90,7 @@
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Source\Rendering\Renderer.cpp" />
     <ClCompile Include="Source\Core\Engine.cpp" />
     <ClCompile Include="Source\Graphics\Vulkan\VulkanDevice.cpp" />
     <ClCompile Include="Source\Core\Logger.cpp" />
@@ -100,6 +101,7 @@
     <ClCompile Include="Source\Graphics\Vulkan\VulkanSwapchain.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Source\Rendering\Renderer.h" />
     <ClInclude Include="Source\Core\Engine.h" />
     <ClInclude Include="Source\Graphics\Vulkan\VulkanDevice.h" />
     <ClInclude Include="Source\CoreTypes.h" />

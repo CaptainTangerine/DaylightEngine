@@ -5,6 +5,7 @@ struct SDL_Window;
 namespace Dlight
 {
 	class  VulkanDevice;
+	class  Renderer;
 
 	class Engine
 	{
@@ -13,11 +14,10 @@ namespace Dlight
 		~Engine();
 
 	public:
-		bool Initialize();
 		void Run();
-		void Shutdown();
 
 	private:
+		void Shutdown();
 		void ShowError(const std::string& message) const;
 
 	private:
@@ -28,5 +28,6 @@ namespace Dlight
 		bool	 bRunning = { false };
 
 		std::unique_ptr<VulkanDevice> vulkanDevice = { nullptr };
+		std::unique_ptr<Renderer>	  renderer = { nullptr };
 	};
 }

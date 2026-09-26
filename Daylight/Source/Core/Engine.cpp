@@ -4,6 +4,8 @@
 #include <SDL3/SDL.h>
 
 #include <Graphics/Vulkan/VulkanDevice.h>
+#include <Rendering/Renderer.h>
+#include <cstdlib>
 
 namespace Dlight
 {
@@ -13,15 +15,17 @@ namespace Dlight
 		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Daylight - Error", message.c_str(), window);
 	}
 
-	Engine::Engine() = default;
-	Engine::~Engine() = default;
+	Engine::~Engine()
+	{
+		Shutdown();
+	}
 
-	bool Engine::Initialize()
+	Engine::Engine()
 	{
 		if (!SDL_InitSubSystem(SDL_INIT_VIDEO))
 		{
 			ShowError(SDL_GetError());
-			return false;
+			std::abort();
 		}
 
 		window = SDL_CreateWindow(
@@ -33,28 +37,21 @@ namespace Dlight
 		if (!window)
 		{
 			ShowError(SDL_GetError());
-			return false;
+			std::abort();
 		}
 
 		DL_LOG_INFO("Window created: ", width, "x", height);
-
-		vulkanDevice = std::make_unique<VulkanDevice>();
 
 		int pixelWidth = 0;
 		int pixelHeight = 0;
 		if (!SDL_GetWindowSizeInPixels(window, &pixelWidth, &pixelHeight))
 		{
 			ShowError(SDL_GetError());
-			return false;
+			std::abort();
 		}
 
-		if (!vulkanDevice->Initialize(window, static_cast<uint32>(pixelWidth), static_cast<uint32>(pixelHeight)))
-		{
-			ShowError("Can't initialize Vulkan device");
-			return false;
-		}
-
-		return true;
+		vulkanDevice = std::make_unique<VulkanDevice>(
+			window, static_cast<uint32>(pixelWidth), static_cast<uint32>(pixelHeight));
 	}
 
 	void Engine::Run()
@@ -84,6 +81,7 @@ namespace Dlight
 
 	void Engine::Shutdown()
 	{
+		renderer.reset();
 		vulkanDevice.reset();
 
 		if (window)

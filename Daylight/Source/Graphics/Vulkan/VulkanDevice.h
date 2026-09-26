@@ -15,21 +15,23 @@ namespace Dlight
 		constexpr static uint32   vulkanVersion = { VK_API_VERSION_1_4 };
 
 	public:
-		VulkanDevice();
+		VulkanDevice(SDL_Window* window, uint32 width, uint32 height);
 		~VulkanDevice();
 
 	public:
-		bool Initialize(SDL_Window* window, uint32 width, uint32 height);
-		void Shutdown();
-
 		VkInstance GetInstance() const { return vulkanInstance; }
 		VkPhysicalDevice GetPhysicalDevice() const { return physicalDevice; }
 		VkDevice GetDevice() const { return device; }
 		VkQueue GetGraphicsQueue() const { return gfxQueue; }
 		uint32 GetGraphicsQueueFamilyIndex() const { return gfxQueueFamilyIndex; }
 		VkSurfaceKHR GetSurface() const { return vulkanSurface; }
+		VmaAllocator GetVmaAllocator() const { return vmaAllocator;  }
+		VulkanSwapchain& GetSwapchain() { return *swapchain; }
+		const VulkanSwapchain& GetSwapchain() const { return *swapchain; }
 
 	private:
+		void Shutdown();
+
 		bool InitializeVulkan();
 		bool InitializeSurface(SDL_Window* window);
 		VkPhysicalDevice FindPhysicalDevice() const;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdlib>
+
 // STL
 #include <cstddef>
 #include <cstdint>

@@ -5,12 +5,7 @@ int main()
 {
     Dlight::Engine engine;
 
-    if (engine.Initialize())
-    {
-        engine.Run();
-    }
-
-    engine.Shutdown();
+    engine.Run();
 
     return 0;
 }

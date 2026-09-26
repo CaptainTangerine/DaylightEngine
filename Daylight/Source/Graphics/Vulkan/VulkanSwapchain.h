@@ -12,7 +12,7 @@ namespace Dlight
 		constexpr static VkFormat swapchainFormat = { VK_FORMAT_B8G8R8A8_SRGB };
 
 	public:
-		explicit VulkanSwapchain(VulkanDevice& device);
+		VulkanSwapchain(VulkanDevice& device, uint32 width, uint32 height);
 		~VulkanSwapchain();
 
 		VulkanSwapchain(const VulkanSwapchain&) = delete;
@@ -20,9 +20,10 @@ namespace Dlight
 
 	public:
 		VkSwapchainKHR GetSwapchain() { return swapchain; };
+		uint32 GetWidth() const { return swapchainWidth; }
+		uint32 GetHeight() const { return swapchainHeight; }
 
-	public:
-		bool Initialize(uint32 width, uint32 height);
+	private:
 		void Shutdown();
 
 	private:

@@ -1,20 +1,17 @@
 #include "pch.h"
 #include "VulkanSwapchain.h"
 #include "VulkanDevice.h"
+#include <cstdlib>
 
 namespace Dlight
 {
-	VulkanSwapchain::VulkanSwapchain(VulkanDevice& device)
-		: device(device)
-	{
-	}
-
 	VulkanSwapchain::~VulkanSwapchain()
 	{
 		Shutdown();
 	}
 
-	bool VulkanSwapchain::Initialize(uint32 width, uint32 height)
+	VulkanSwapchain::VulkanSwapchain(VulkanDevice& device, uint32 width, uint32 height)
+		: device(device)
 	{
 		swapchainWidth  = width;
 		swapchainHeight = height;
@@ -24,18 +21,18 @@ namespace Dlight
 		if (vkGetPhysicalDeviceSurfaceFormatsKHR(device.GetPhysicalDevice(), device.GetSurface(), &formatCount, nullptr) != VK_SUCCESS)
 		{
 			DL_LOG_ERROR("Failed to get surface format count");
-			return false;
+			std::abort();
 		}
 		if (formatCount == 0)
 		{
 			DL_LOG_ERROR("No surface formats are available");
-			return false;
+			std::abort();
 		}
 		std::vector<VkSurfaceFormatKHR> surfaceFormats(formatCount);
 		if (vkGetPhysicalDeviceSurfaceFormatsKHR(device.GetPhysicalDevice(), device.GetSurface(), &formatCount, surfaceFormats.data()) != VK_SUCCESS)
 		{
 			DL_LOG_ERROR("Failed to get surface formats");
-			return false;
+			std::abort();
 		}
 		surfaceFormats.resize(formatCount);
 
@@ -52,7 +49,7 @@ namespace Dlight
 		if (!formatSupported)
 		{
 			DL_LOG_ERROR("Requested swapchain format is not supported by the surface");
-			return false;
+			std::abort();
 		}
 
 
@@ -60,7 +57,7 @@ namespace Dlight
 		if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.GetPhysicalDevice(), device.GetSurface(), &surfaceCaps))
 		{
 			DL_LOG_ERROR("Can't get the surface capabilities");
-			return false;
+			std::abort();
 		}
 
 		// 스왑체인 생성
@@ -82,7 +79,7 @@ namespace Dlight
 		if (vkCreateSwapchainKHR(device.GetDevice(), &swapchainCreateInfo, nullptr, &swapchain) != VK_SUCCESS)
 		{
 			DL_LOG_ERROR("Error creating swapchain");
-			return false;
+			std::abort();
 		}
 
 		// 실제 스왑체인이 관리하는 이미지 개수 가져오기
@@ -107,7 +104,7 @@ namespace Dlight
 			if (VK_SUCCESS != vkCreateImageView(device.GetDevice(), &imgViewInfo, nullptr, &swapchainImageViews[i]))
 			{
 				DL_LOG_ERROR("Error Createing Swapchian ImageViews");
-				return false;
+				std::abort();
 			}
 		}
 
@@ -121,11 +118,10 @@ namespace Dlight
 			if (VK_SUCCESS != vkCreateSemaphore(device.GetDevice(), &semaphoreInfo, nullptr, &semaphore))
 			{
 				DL_LOG_ERROR("Error create render complete semaphore");
-				return false;
+				std::abort();
 			}
 		}
 		
-		return true;
 	}
 
 	void VulkanSwapchain::Shutdown()
