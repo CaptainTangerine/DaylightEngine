@@ -5,7 +5,6 @@
 
 #include <Graphics/Vulkan/VulkanDevice.h>
 #include <Rendering/Renderer.h>
-#include <cstdlib>
 
 namespace Dlight
 {

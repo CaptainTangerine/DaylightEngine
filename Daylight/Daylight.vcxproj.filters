@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Source\Core" />
+    <Filter Include="Source\Core" /><Filter Include="Source\Math" /><Filter Include="External" /><Filter Include="External\SimpleMath" />
     <Filter Include="Source\Graphics" />
     <Filter Include="Source\Graphics\Vulkan" />
     <Filter Include="Source">
@@ -25,7 +25,7 @@
       <Filter>Source\Core</Filter>
     </ClCompile>
     <ClCompile Include="Source\Graphics\Vulkan\VulkanSwapchain.cpp" />
-    <ClCompile Include="Source\Rendering\Renderer.cpp" />
+    <ClCompile Include="Source\Rendering\Renderer.cpp" /><ClCompile Include="..\External\SimpleMath\SimpleMath.cpp"><Filter>External\SimpleMath</Filter></ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Graphics\Vulkan\VulkanDevice.h">
@@ -44,6 +44,6 @@
       <Filter>Source</Filter>
     </ClInclude>
     <ClInclude Include="Source\Graphics\Vulkan\VulkanSwapchain.h" />
-    <ClInclude Include="Source\Rendering\Renderer.h" />
+    <ClInclude Include="Source\Rendering\Renderer.h" /><ClInclude Include="Source\Math\MathTypes.h"><Filter>Source\Math</Filter></ClInclude><ClInclude Include="..\External\SimpleMath\SimpleMath.h"><Filter>External\SimpleMath</Filter></ClInclude>
   </ItemGroup>
 </Project>

@@ -3,7 +3,6 @@
 
 #include "Graphics/Vulkan/VulkanDevice.h"
 #include "Graphics/Vulkan/VulkanSwapchain.h"
-#include <cstdlib>
 
 
 namespace Dlight

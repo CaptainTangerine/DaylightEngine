@@ -15,4 +15,5 @@
 #include <memory>
 
 #include "CoreTypes.h"
+#include "Math/MathTypes.h"
 #include "Core/Logger.h"
