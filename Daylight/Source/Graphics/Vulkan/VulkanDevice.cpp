@@ -95,10 +95,33 @@ namespace Dlight
 		}
 
 		swapchain = std::make_unique<VulkanSwapchain>(*this, width, height);
+
+		if (!CreateSyncResources())
+		{
+			DL_LOG_ERROR("Can't create a Sync Resource");
+			std::abort();
+		}
+
+		if (!CreateCommandBuffers())
+		{
+			DL_LOG_ERROR("Can't create command buffer objects");
+			std::abort();
+		}
 	}
 
 	void VulkanDevice::Shutdown()
 	{
+		if (timelineSemaphore)
+		{
+			vkDestroySemaphore(device, timelineSemaphore, nullptr);
+		}
+
+		for (auto& res : frameResources)
+		{
+			vkDestroySemaphore(device, res.imageAcquiredSemaphore, nullptr);
+			vkDestroyCommandPool(device, res.commandPool, nullptr);
+		}
+
 		if (swapchain)
 		{
 			swapchain.reset();
@@ -353,7 +376,7 @@ namespace Dlight
 		devCreateInfo.pQueueCreateInfos = &gfxQueueInfo;
 		devCreateInfo.enabledExtensionCount = static_cast<uint32>(deviceExtensions.size());
 		devCreateInfo.ppEnabledExtensionNames = deviceExtensions.data();
-		devCreateInfo.pEnabledFeatures = nullptr; 
+		devCreateInfo.pEnabledFeatures = nullptr;
 
 		// GPU 자원에 접근하는데 사용될 VkDevice 객체생성
 		if (VK_SUCCESS != vkCreateDevice(physicalDevice, &devCreateInfo, nullptr, &device))
@@ -389,6 +412,69 @@ namespace Dlight
 			return false;
 		}
 
+		return true;
+	}
+
+	bool VulkanDevice::CreateSyncResources()
+	{
+		VkSemaphoreTypeCreateInfo semaphoreTypeInfo = {};
+		semaphoreTypeInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO;
+		semaphoreTypeInfo.semaphoreType = VK_SEMAPHORE_TYPE_TIMELINE;
+		semaphoreTypeInfo.initialValue = MaxFramesInFlight;
+
+		VkSemaphoreCreateInfo semaphoreInfo = {};
+		semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+		semaphoreInfo.pNext = &semaphoreTypeInfo;
+
+		if (VK_SUCCESS != vkCreateSemaphore(device, &semaphoreInfo, nullptr, &timelineSemaphore))
+		{
+			DL_LOG_ERROR("Unable to create timeline semaphore");
+			return false;
+		}
+
+		// per-frame image-acquire semaphores
+		for (FrameResources& res : frameResources)
+		{
+			VkSemaphoreCreateInfo semaphoreInfo = {};
+			semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+			if (VK_SUCCESS != vkCreateSemaphore(device, &semaphoreInfo, nullptr, &res.imageAcquiredSemaphore))
+			{
+				DL_LOG_ERROR("Error creating the per-frame image-acquire semaphore");
+				return false;
+			}
+		}
+
+		return true;
+	}
+	bool VulkanDevice::CreateCommandBuffers()
+	{
+		for (FrameResources& res : frameResources)
+		{
+			VkCommandPoolCreateInfo poolInfo = {};
+
+			poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+			poolInfo.queueFamilyIndex = gfxQueueFamilyIndex;
+
+			if (VK_SUCCESS != vkCreateCommandPool(device, &poolInfo, nullptr, &res.commandPool))
+			{
+				DL_LOG_ERROR("Fail to create command buffer pool");
+				return false;
+			}
+
+			VkCommandBufferAllocateInfo cmdAllocInfo = {};
+
+			cmdAllocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+			cmdAllocInfo.commandPool = res.commandPool;
+			cmdAllocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+			cmdAllocInfo.commandBufferCount = 1;
+
+			if (VK_SUCCESS != vkAllocateCommandBuffers(device, &cmdAllocInfo, &res.commandBuffer))
+			{
+				DL_LOG_ERROR("Unable to allocate command buffer");
+				return false;
+			}
+		}
 		return true;
 	}
 }

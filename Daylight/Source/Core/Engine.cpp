@@ -87,6 +87,8 @@ namespace Dlight
 
 	void Engine::Shutdown()
 	{
+		vkDeviceWaitIdle(vulkanDevice->GetDevice());
+
 		renderer.reset();
 		vulkanDevice.reset();
 

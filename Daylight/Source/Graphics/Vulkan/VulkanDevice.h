@@ -10,9 +10,18 @@ namespace Dlight
 {
 	class VulkanSwapchain;
 
+	struct FrameResources
+	{
+		VkCommandPool commandPool = { nullptr };
+		VkCommandBuffer commandBuffer = { nullptr };
+		VkSemaphore imageAcquiredSemaphore = { nullptr };
+	};
+
 	class VulkanDevice
 	{
 		constexpr static uint32   vulkanVersion = { VK_API_VERSION_1_4 };
+		constexpr static uint32   MaxFramesInFlight = { 2 };
+
 
 	public:
 		VulkanDevice(SDL_Window* window, uint32 width, uint32 height);
@@ -39,6 +48,9 @@ namespace Dlight
 		bool FindGraphicsQueue();
 		bool CreateDevice();
 		bool InitializeVMA();
+		bool CreateSyncResources();
+		bool CreateCommandBuffers();
+
 
 		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
 			VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -65,5 +77,8 @@ namespace Dlight
 		// Swapchain
 		std::unique_ptr<VulkanSwapchain> swapchain;
 
+		// Frame and synchroniztion resources
+		VkSemaphore timelineSemaphore = { nullptr };
+		std::array<FrameResources, MaxFramesInFlight> frameResources;
 	};
 }

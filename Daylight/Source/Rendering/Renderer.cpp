@@ -34,7 +34,6 @@ namespace Dlight
 	void Renderer::Shutdown()
 	{
 		DestroyPipelines();
-
 		DestroyDepthStencilResources();
 	}
 
