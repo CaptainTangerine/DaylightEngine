@@ -1,6 +1,7 @@
 #pragma once
 
 #include <dxc/dxcapi.h>
+#include <string>
 
 namespace Dlight
 {
@@ -15,8 +16,11 @@ namespace Dlight
 
 		std::vector<uint32> Compile(
 			const wchar_t* filePath,
-			const wchar_t* entryPoint,
+			const std::string& entryPoint,
 			const wchar_t* targetProfile);
+
+	private:
+		void Initialize();
 
 	private:
 		ComPtr<IDxcUtils> utils;

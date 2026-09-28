@@ -30,6 +30,7 @@ namespace Dlight
 		const VulkanSwapchain& GetSwapchain() const { return *swapchain; }
 
 	private:
+		void Initialize(SDL_Window* window, uint32 width, uint32 height);
 		void Shutdown();
 
 		bool InitializeVulkan();

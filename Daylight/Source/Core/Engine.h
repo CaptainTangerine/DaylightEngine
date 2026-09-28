@@ -17,6 +17,7 @@ namespace Dlight
 		void Run();
 
 	private:
+		void Initialize();
 		void Shutdown();
 		void ShowError(const std::string& message) const;
 

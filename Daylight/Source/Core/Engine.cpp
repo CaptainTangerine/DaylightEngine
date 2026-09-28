@@ -14,12 +14,17 @@ namespace Dlight
 		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Daylight - Error", message.c_str(), window);
 	}
 
+	Engine::Engine()
+	{
+		Initialize();
+	}
+
 	Engine::~Engine()
 	{
 		Shutdown();
 	}
 
-	Engine::Engine()
+	void Engine::Initialize()
 	{
 		if (!SDL_InitSubSystem(SDL_INIT_VIDEO))
 		{
@@ -51,6 +56,8 @@ namespace Dlight
 
 		vulkanDevice = std::make_unique<VulkanDevice>(
 			window, static_cast<uint32>(pixelWidth), static_cast<uint32>(pixelHeight));
+
+		renderer = std::make_unique<Renderer>(*vulkanDevice);
 	}
 
 	void Engine::Run()

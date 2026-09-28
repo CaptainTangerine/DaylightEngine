@@ -9,6 +9,7 @@ namespace Dlight
 
 	class VulkanSwapchain
 	{
+	public:
 		constexpr static VkFormat swapchainFormat = { VK_FORMAT_B8G8R8A8_SRGB };
 
 	public:
@@ -24,6 +25,7 @@ namespace Dlight
 		uint32 GetHeight() const { return swapchainHeight; }
 
 	private:
+		void Initialize(uint32 width, uint32 height);
 		void Shutdown();
 
 	private:

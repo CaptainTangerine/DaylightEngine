@@ -44,12 +44,17 @@ namespace Dlight
 	}
 
 
+	VulkanDevice::VulkanDevice(SDL_Window* window, uint32 width, uint32 height)
+	{
+		Initialize(window, width, height);
+	}
+
 	VulkanDevice::~VulkanDevice()
 	{
 		Shutdown();
 	}
 
-	VulkanDevice::VulkanDevice(SDL_Window* window, uint32 width, uint32 height)
+	void VulkanDevice::Initialize(SDL_Window* window, uint32 width, uint32 height)
 	{
 		if (!InitializeVulkan())
 		{

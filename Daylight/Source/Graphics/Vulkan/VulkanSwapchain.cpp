@@ -5,13 +5,18 @@
 
 namespace Dlight
 {
+	VulkanSwapchain::VulkanSwapchain(VulkanDevice& _device, uint32 width, uint32 height)
+		: device(_device)
+	{
+		Initialize(width, height);
+	}
+
 	VulkanSwapchain::~VulkanSwapchain()
 	{
 		Shutdown();
 	}
 
-	VulkanSwapchain::VulkanSwapchain(VulkanDevice& device, uint32 width, uint32 height)
-		: device(device)
+	void VulkanSwapchain::Initialize(uint32 width, uint32 height)
 	{
 		swapchainWidth  = width;
 		swapchainHeight = height;

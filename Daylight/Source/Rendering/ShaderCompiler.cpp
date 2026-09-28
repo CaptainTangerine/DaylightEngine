@@ -5,6 +5,14 @@ namespace Dlight
 {
 	ShaderCompiler::ShaderCompiler()
 	{
+		Initialize();
+	}
+
+	// ComPtr 멤버가 소멸하면서 DXC 객체를 자동으로 해제한다.
+	ShaderCompiler::~ShaderCompiler() = default;
+
+	void ShaderCompiler::Initialize()
+	{
 		// 파일 읽기 등 보조 기능을 제공하는 DXC 객체를 생성한다.
 		HRESULT result = DxcCreateInstance(CLSID_DxcUtils, IID_PPV_ARGS(utils.GetAddressOf()));
 		if (FAILED(result))
@@ -30,16 +38,13 @@ namespace Dlight
 		}
 	}
 
-	// ComPtr 멤버가 소멸하면서 DXC 객체를 자동으로 해제한다.
-	ShaderCompiler::~ShaderCompiler() = default;
-
 	std::vector<uint32> ShaderCompiler::Compile(
 		const wchar_t* filePath,
-		const wchar_t* entryPoint,
+		const std::string& entryPoint,
 		const wchar_t* targetProfile)
 	{
 		// 파일 경로, 진입 함수 이름, 셰이더 프로파일이 비어 있는지 확인한다.
-		if (!filePath || !*filePath || !entryPoint || !*entryPoint || !targetProfile || !*targetProfile)
+		if (!filePath || !*filePath || entryPoint.empty() || !targetProfile || !*targetProfile)
 		{
 			DL_LOG_ERROR("Shader compilation requires a file path, entry point and target profile");
 			std::abort();
@@ -80,11 +85,14 @@ namespace Dlight
 		const size_t separator = shaderPath.find_last_of(L"/\\");
 		const std::wstring includeDirectory = separator == std::wstring::npos
 			? L"." : shaderPath.substr(0, separator + 1);
+		// 규약의 ASCII 진입점 이름을 DXC 호출에 필요한 wide 문자열로 변환한다.
+		const std::wstring wideEntryPoint(entryPoint.begin(), entryPoint.end());
+
 		// 진입 함수(-E), 프로파일(-T), SPIR-V 출력과 대상 Vulkan 환경을 지정한다.
 		// Y 반전은 viewport에서 처리하므로 컴파일 옵션에 넣지 않는다.
 		const wchar_t* arguments[] = {
 			filePath,
-			L"-E", entryPoint,
+			L"-E", wideEntryPoint.c_str(),
 			L"-T", targetProfile,
 			L"-spirv",
 			L"-fspv-target-env=vulkan1.3",

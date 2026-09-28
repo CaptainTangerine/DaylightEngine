@@ -105,11 +105,13 @@ xcopy /Y /D "$(VULKAN_SDK)\Bin\dxcompiler.dll" "$(OutDir)"</Command>
       <PrecompiledHeader>Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="Source\Graphics\Vulkan\VulkanSwapchain.cpp" />
+    <ClCompile Include="Source\Graphics\Vulkan\VulkanPipeline.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\Math\MathTypes.h" />
     <ClInclude Include="..\External\SimpleMath\SimpleMath.h" />
     <ClInclude Include="Source\Rendering\ShaderCompiler.h" />
+    <ClInclude Include="Source\Rendering\ShaderConventions.h" />
     <ClInclude Include="Source\Rendering\Renderer.h" />
     <ClInclude Include="Source\Core\Engine.h" />
     <ClInclude Include="Source\Graphics\Vulkan\VulkanDevice.h" />
@@ -117,6 +119,13 @@ xcopy /Y /D "$(VULKAN_SDK)\Bin\dxcompiler.dll" "$(OutDir)"</Command>
     <ClInclude Include="Source\Core\Logger.h" />
     <ClInclude Include="Source\pch.h" />
     <ClInclude Include="Source\Graphics\Vulkan\VulkanSwapchain.h" />
+    <ClInclude Include="Source\Graphics\Vulkan\VulkanPipeline.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <FxCompile Include="Shaders\Triangle.hlsl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
