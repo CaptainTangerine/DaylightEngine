@@ -1,9 +1,6 @@
 #pragma once
 #include "ShaderCompiler.h"
 
-#include <vulkan/vulkan.h>
-#include <vma/vk_mem_alloc.h>
-
 namespace Dlight
 {
 	class VulkanDevice;
@@ -20,12 +17,10 @@ namespace Dlight
 		Renderer& operator=(const Renderer&) = delete;
 
 	public:
-		bool CreateDepthStencilResources();
-		void DestroyDepthStencilResources();
-
 		bool CreatePipelines();
 		void DestroyPipelines();
 
+		void Render();
 	private:
 		void Initialize();
 		void Shutdown();
@@ -33,17 +28,10 @@ namespace Dlight
 	private:
 		VulkanDevice& device;
 		
-		// Depth-stencil buffer
-		static constexpr VkFormat depthStencilFormat{ VK_FORMAT_D32_SFLOAT_S8_UINT };
-		VkImage depthStencilImage = { nullptr };
-		VkImageView depthStencilImageView = { nullptr };
-		VmaAllocation depthStencilImageAllocation = { nullptr };
-
 		// Shader Compilier
 		ShaderCompiler shaderCompiler;
 
 		// Pipeline
 		std::unique_ptr<VulkanPipeline> trianglePipeline = { nullptr };
-
 	};
 }

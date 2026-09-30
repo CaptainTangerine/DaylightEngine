@@ -22,6 +22,7 @@ namespace Dlight
 		constexpr static uint32   vulkanVersion = { VK_API_VERSION_1_4 };
 		constexpr static uint32   MaxFramesInFlight = { 2 };
 
+		constexpr static VkFormat depthStencilFormat = { VK_FORMAT_D32_SFLOAT_S8_UINT };
 
 	public:
 		VulkanDevice(SDL_Window* window, uint32 width, uint32 height);
@@ -37,6 +38,17 @@ namespace Dlight
 		VmaAllocator GetVmaAllocator() const { return vmaAllocator;  }
 		VulkanSwapchain& GetSwapchain() { return *swapchain; }
 		const VulkanSwapchain& GetSwapchain() const { return *swapchain; }
+		VkFormat GetDepthStencilFormat() const { return depthStencilFormat; }
+		VkImage GetDepthStencilImage() const { return depthStencilImage; }
+		VkImageView GetDepthStencilImageView() const { return depthStencilImageView; }
+
+	public:
+		// 현재 사용가능한 이미지인덱스를 PresentEngine에서 가져온다.
+		bool AcquireNextImage();
+		void UpdateSwapchain(uint32 width, uint32 height);
+
+		void BeginFrame();
+		void EndFrame();
 
 	private:
 		void Initialize(SDL_Window* window, uint32 width, uint32 height);
@@ -50,6 +62,8 @@ namespace Dlight
 		bool InitializeVMA();
 		bool CreateSyncResources();
 		bool CreateCommandBuffers();
+		bool CreateDepthStencilResources();
+		void DestroyDepthStencilResources();
 
 
 		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
@@ -76,9 +90,18 @@ namespace Dlight
 
 		// Swapchain
 		std::unique_ptr<VulkanSwapchain> swapchain;
+		bool bRequireRecreateSwapchain = { false };
+		uint32 imageIndex = { 0 };
+
+		// Default depthstencil buffer
+		VkImage depthStencilImage = VK_NULL_HANDLE;
+		VkImageView depthStencilImageView = VK_NULL_HANDLE;
+		VmaAllocation depthStencilImageAllocation = nullptr;
 
 		// Frame and synchroniztion resources
 		VkSemaphore timelineSemaphore = { nullptr };
 		std::array<FrameResources, MaxFramesInFlight> frameResources;
+		uint64 frameIndex = { 0 };
+		uint64 nextSignalValue = { MaxFramesInFlight + 1 };
 	};
 }

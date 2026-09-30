@@ -24,7 +24,7 @@ namespace Dlight
 		uint32 GetWidth() const { return swapchainWidth; }
 		uint32 GetHeight() const { return swapchainHeight; }
 
-	private:
+	public:
 		void Initialize(uint32 width, uint32 height);
 		void Shutdown();
 
@@ -32,9 +32,8 @@ namespace Dlight
 		VulkanDevice& device;
 		VkSwapchainKHR swapchain = { VK_NULL_HANDLE };
 		
-		bool bReqireSwapchainRecreate = false;
-		uint32 swapchainWidth = 0;
-		uint32 swapchainHeight = 0;
+		uint32 swapchainWidth = { 0 };
+		uint32 swapchainHeight = { 0 };
 
 		std::vector<VkImage> swapchainImages;
 		std::vector<VkImageView> swapchainImageViews;

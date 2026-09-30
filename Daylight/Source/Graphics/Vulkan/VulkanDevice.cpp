@@ -54,6 +54,98 @@ namespace Dlight
 		Shutdown();
 	}
 
+	bool VulkanDevice::AcquireNextImage()
+	{
+		// flight in frame 타임라인 세마포어를 wait
+
+		// 현재 CPU가 확인하는 flight in frame 인덱스
+		const uint32 curFrameResourceIdx = static_cast<uint32>(frameIndex % MaxFramesInFlight);
+		// GPU가 해당 작업을 마쳤을때의 타임라인 세마포어 value
+		const uint64 signalValue = nextSignalValue;
+		// 현재 CPU가 GPU가 읽기를 마칠떄까지 기다려야하는 세마포어 value
+		const uint64 waitValue = signalValue - MaxFramesInFlight;
+
+		VkSemaphoreWaitInfo waitInfo = {};
+		waitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO;
+		waitInfo.semaphoreCount = 1;
+		waitInfo.pSemaphores = &timelineSemaphore;
+		waitInfo.pValues = &waitValue;
+
+		const VkResult waitResult = vkWaitSemaphores(device, &waitInfo, UINT64_MAX);
+		if (waitResult != VK_SUCCESS)
+		{
+			DL_LOG_ERROR("Failed to wait for frame resources: ", waitResult);
+			std::abort();
+		}
+
+		FrameResources& res = frameResources[curFrameResourceIdx];
+		const VkResult resetResult = vkResetCommandPool(device, res.commandPool, 0);
+		if (resetResult != VK_SUCCESS)
+		{
+			DL_LOG_ERROR("Failed to reset command pool: ", resetResult);
+			std::abort();
+		}
+
+		// 현재 프레임의 바이너리 세마포어
+		VkSemaphore imageAquireSemaphore = frameResources[curFrameResourceIdx].imageAcquiredSemaphore;
+
+		// present engine에 이미지 요청
+		VkResult aquireResult = vkAcquireNextImageKHR(device, swapchain->GetSwapchain(), UINT64_MAX, imageAquireSemaphore, VK_NULL_HANDLE ,&imageIndex);
+
+		// 리사이즈나 오래된 이미지 경우
+		if (VK_ERROR_OUT_OF_DATE_KHR == aquireResult)
+		{
+			bRequireRecreateSwapchain = true;
+			return false;
+		}
+		else if (VK_SUBOPTIMAL_KHR == aquireResult)
+		{
+			bRequireRecreateSwapchain = true;
+			return true;
+		}
+
+		if (aquireResult != VK_SUCCESS)
+		{
+			DL_LOG_ERROR("Failed to acquire swapchain image: ", aquireResult);
+			std::abort();
+		}
+
+		return true;
+	}
+
+	void VulkanDevice::UpdateSwapchain(uint32 width, uint32 height)
+	{
+		if (!bRequireRecreateSwapchain)
+		{
+			return;
+		}
+
+		if (width == 0 || height == 0)
+		{
+			return;
+		}
+
+		vkDeviceWaitIdle(device);
+		swapchain->Shutdown();
+		swapchain->Initialize(width, height);
+
+		if (!CreateDepthStencilResources())
+		{
+			DL_LOG_ERROR("Failed to recreate depth-stencil resources");
+			std::abort();
+		}
+
+		bRequireRecreateSwapchain = false;
+	}
+
+	void VulkanDevice::BeginFrame()
+	{
+	}
+
+	void VulkanDevice::EndFrame()
+	{
+	}
+
 	void VulkanDevice::Initialize(SDL_Window* window, uint32 width, uint32 height)
 	{
 		if (!InitializeVulkan())
@@ -96,6 +188,12 @@ namespace Dlight
 
 		swapchain = std::make_unique<VulkanSwapchain>(*this, width, height);
 
+		if (!CreateDepthStencilResources())
+		{
+			DL_LOG_ERROR("Failed to create depth-stencil resources");
+			std::abort();
+		}
+
 		if (!CreateSyncResources())
 		{
 			DL_LOG_ERROR("Can't create a Sync Resource");
@@ -111,6 +209,8 @@ namespace Dlight
 
 	void VulkanDevice::Shutdown()
 	{
+		DestroyDepthStencilResources();
+
 		if (timelineSemaphore)
 		{
 			vkDestroySemaphore(device, timelineSemaphore, nullptr);
@@ -413,6 +513,76 @@ namespace Dlight
 		}
 
 		return true;
+	}
+
+	bool VulkanDevice::CreateDepthStencilResources()
+	{
+		VkFormatProperties formatProperties{};
+		vkGetPhysicalDeviceFormatProperties(physicalDevice, depthStencilFormat, &formatProperties);
+		if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT))
+		{
+			DL_LOG_ERROR("VK_FORMAT_D32_SFLOAT_S8_UINT is not supported as a depth-stencil attachment");
+			return false;
+		}
+
+		DestroyDepthStencilResources();
+
+		VkImageCreateInfo depthStencilCreateInfo = {};
+		depthStencilCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		depthStencilCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+		depthStencilCreateInfo.format = depthStencilFormat;
+		depthStencilCreateInfo.extent.width = GetSwapchain().GetWidth();
+		depthStencilCreateInfo.extent.height = GetSwapchain().GetHeight();
+		depthStencilCreateInfo.extent.depth = 1;
+		depthStencilCreateInfo.mipLevels = 1;
+		depthStencilCreateInfo.arrayLayers = 1;
+		depthStencilCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		depthStencilCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+		depthStencilCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		depthStencilCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+		VmaAllocationCreateInfo allocInfo = {};
+		allocInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+		allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
+
+		if (VK_SUCCESS != vmaCreateImage(vmaAllocator, &depthStencilCreateInfo, &allocInfo, &depthStencilImage, &depthStencilImageAllocation, nullptr))
+		{
+			DL_LOG_ERROR("Failed to allocate depth-stencil image");
+			return false;
+		}
+
+		VkImageViewCreateInfo viewInfo{};
+		viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		viewInfo.image = depthStencilImage;
+		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		viewInfo.format = depthStencilFormat;
+		viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+		viewInfo.subresourceRange.levelCount = 1;
+		viewInfo.subresourceRange.layerCount = 1;
+
+		if (vkCreateImageView(device, &viewInfo, nullptr, &depthStencilImageView) != VK_SUCCESS)
+		{
+			DL_LOG_ERROR("Failed to create depth-stencil image view");
+			DestroyDepthStencilResources();
+			return false;
+		}
+
+		return true;
+	}
+
+	void VulkanDevice::DestroyDepthStencilResources()
+	{
+		if (depthStencilImageView)
+		{
+			vkDestroyImageView(device, depthStencilImageView, nullptr);
+			depthStencilImageView = nullptr;
+		}
+		if (depthStencilImage)
+		{
+			vmaDestroyImage(vmaAllocator, depthStencilImage, depthStencilImageAllocation);
+			depthStencilImage = nullptr;
+			depthStencilImageAllocation = nullptr;
+		}
 	}
 
 	bool VulkanDevice::CreateSyncResources()

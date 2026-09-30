@@ -30,5 +30,6 @@ namespace Dlight
 
 		std::unique_ptr<VulkanDevice> vulkanDevice = { nullptr };
 		std::unique_ptr<Renderer>	  renderer = { nullptr };
+
 	};
 }

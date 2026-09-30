@@ -63,7 +63,7 @@ namespace Dlight
 	void Engine::Run()
 	{
 		bRunning = true;
-		while (bRunning)
+		while (true)
 		{
 			SDL_Event event{ 0 };
 
@@ -74,13 +74,31 @@ namespace Dlight
 					bRunning = false;
 					break;
 				}
-				else if (event.type == SDL_EVENT_WINDOW_RESIZED)
+				else if (event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED)
 				{
 					width = event.window.data1;
 					height = event.window.data2;
-					break;
 				}
 
+			}
+
+			if (!bRunning)
+			{
+				break;
+			}
+
+			if (width == 0 || height == 0)
+			{
+				continue;
+			}
+
+			vulkanDevice->UpdateSwapchain(width, height);
+
+			if (vulkanDevice->AcquireNextImage())
+			{
+				vulkanDevice->BeginFrame();
+				renderer->Render();
+				vulkanDevice->EndFrame();
 			}
 		}
 	}
