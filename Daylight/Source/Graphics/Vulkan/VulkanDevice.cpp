@@ -58,8 +58,6 @@ namespace Dlight
 	{
 		// flight in frame 타임라인 세마포어를 wait
 
-		// 현재 CPU가 확인하는 flight in frame 인덱스
-		const uint32 curFrameResourceIdx = static_cast<uint32>(frameIndex % MaxFramesInFlight);
 		// GPU가 해당 작업을 마쳤을때의 타임라인 세마포어 value
 		const uint64 signalValue = nextSignalValue;
 		// 현재 CPU가 GPU가 읽기를 마칠떄까지 기다려야하는 세마포어 value
@@ -78,7 +76,7 @@ namespace Dlight
 			std::abort();
 		}
 
-		FrameResources& res = frameResources[curFrameResourceIdx];
+		FrameResource& res = GetCurrentFrameResource();
 		const VkResult resetResult = vkResetCommandPool(device, res.commandPool, 0);
 		if (resetResult != VK_SUCCESS)
 		{
@@ -87,7 +85,7 @@ namespace Dlight
 		}
 
 		// 현재 프레임의 바이너리 세마포어
-		VkSemaphore imageAquireSemaphore = frameResources[curFrameResourceIdx].imageAcquiredSemaphore;
+		VkSemaphore imageAquireSemaphore = res.imageAcquiredSemaphore;
 
 		// present engine에 이미지 요청
 		VkResult aquireResult = vkAcquireNextImageKHR(device, swapchain->GetSwapchain(), UINT64_MAX, imageAquireSemaphore, VK_NULL_HANDLE ,&imageIndex);
@@ -138,12 +136,161 @@ namespace Dlight
 		bRequireRecreateSwapchain = false;
 	}
 
+	RenderFrameContext VulkanDevice::GetCurrentRenderFrameContext() const
+	{
+		RenderFrameContext context{};
+		context.commandBuffer = GetCurrentFrameResource().commandBuffer;
+		context.colorImageView = swapchain->GetSwapchainImageView(imageIndex);
+		context.depthStencilImageView = depthStencilImageView;
+		context.extent = { swapchain->GetWidth(), swapchain->GetHeight() };
+		return context;
+	}
+
 	void VulkanDevice::BeginFrame()
 	{
+		FrameResource& res = GetCurrentFrameResource();
+
+		VkCommandBufferBeginInfo cmdBeginInfo = {};
+		cmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		// 기존 기록을 다음 프레임에는 사용하지않는다.
+		cmdBeginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+		if (VK_SUCCESS != vkBeginCommandBuffer(res.commandBuffer, &cmdBeginInfo))
+		{
+			DL_LOG_ERROR("Failed to begin command buffer: ");
+			std::abort();
+		}
+
+		std::vector<VkImageMemoryBarrier2> layoutBarriers;
+		layoutBarriers.resize(2);
+
+		// Color Attachment
+		layoutBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		layoutBarriers[0].srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+		layoutBarriers[0].srcAccessMask = 0;
+		layoutBarriers[0].dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		layoutBarriers[0].dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		layoutBarriers[0].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		layoutBarriers[0].newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		layoutBarriers[0].image = swapchain->GetSwapchianImage(imageIndex);
+		layoutBarriers[0].subresourceRange.aspectMask = { VK_IMAGE_ASPECT_COLOR_BIT };
+		layoutBarriers[0].subresourceRange.baseMipLevel = 0;
+		layoutBarriers[0].subresourceRange.levelCount = 1;
+		layoutBarriers[0].subresourceRange.baseArrayLayer = 0;
+		layoutBarriers[0].subresourceRange.layerCount = 1;
+
+		// Depthstencil
+		layoutBarriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		layoutBarriers[1].srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+		layoutBarriers[1].srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		layoutBarriers[1].dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+		layoutBarriers[1].dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		layoutBarriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		layoutBarriers[1].newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		layoutBarriers[1].image = depthStencilImage;
+		layoutBarriers[1].subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+		layoutBarriers[1].subresourceRange.baseMipLevel = 0;
+		layoutBarriers[1].subresourceRange.levelCount = 1;
+		layoutBarriers[1].subresourceRange.baseArrayLayer = 0;
+		layoutBarriers[1].subresourceRange.layerCount = 1;
+
+		VkDependencyInfo depInfo = {};
+		depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		depInfo.imageMemoryBarrierCount = static_cast<uint32>(layoutBarriers.size());
+		depInfo.pImageMemoryBarriers = layoutBarriers.data();
+		vkCmdPipelineBarrier2(res.commandBuffer, &depInfo);
+
+
 	}
 
 	void VulkanDevice::EndFrame()
 	{
+		FrameResource& res = GetCurrentFrameResource();
+		const VkSemaphore renderComplete = swapchain->GetRendercompleteSemaphore(imageIndex);
+		const VkSwapchainKHR swapchainHandle = swapchain->GetSwapchain();
+
+		VkImageMemoryBarrier2 presentLayoutBarrier = {};
+		presentLayoutBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		presentLayoutBarrier.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+		presentLayoutBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		presentLayoutBarrier.dstStageMask = VK_PIPELINE_STAGE_NONE;
+		presentLayoutBarrier.dstAccessMask = 0;
+		presentLayoutBarrier.oldLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
+		presentLayoutBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		presentLayoutBarrier.image = swapchain->GetSwapchianImage(imageIndex);
+		presentLayoutBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		presentLayoutBarrier.subresourceRange.baseMipLevel = 0;
+		presentLayoutBarrier.subresourceRange.levelCount = 1;
+		presentLayoutBarrier.subresourceRange.baseArrayLayer = 0;
+		presentLayoutBarrier.subresourceRange.layerCount = 1;
+
+		VkDependencyInfo presentDepInfo = {};
+		presentDepInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		presentDepInfo.imageMemoryBarrierCount = 1;
+		presentDepInfo.pImageMemoryBarriers = &presentLayoutBarrier;
+		vkCmdPipelineBarrier2(res.commandBuffer, &presentDepInfo);
+
+		vkEndCommandBuffer(res.commandBuffer);
+
+		// 이후 present시 presentEngine과 바이너리 세마포어로 동기화 처리해줘야함
+		// 현재 PresentEngien으로부터 이미지를 가져올 수 있는지 GPU에게 알려줘야한다.
+		// imageAquire세마포어를 통해서 GPU가 써도 되는 순간이 오면 그 떄 signal
+
+		// 이후 GPU 작업이 다 끝나면 타임라인 세마포어를 signal하고 나중에 fligt in Frame으로 CPU가 작업을 이어서 한다.
+
+		// 다 끝나음을 이제 다시 presentEngine에 알려줘야한다.
+		// completeSemphore로 wait하는 presentEngien은 이것을 보고 Presnet를 한다.
+
+		VkSemaphoreSubmitInfo imageAquireWaitInfo = {};
+		imageAquireWaitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+		imageAquireWaitInfo.semaphore = res.imageAcquiredSemaphore;
+		imageAquireWaitInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+
+		std::vector<VkSemaphoreSubmitInfo> semaphoreSignals;
+		semaphoreSignals.resize(2);
+
+		//render complete semaphore
+		semaphoreSignals[0].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+		semaphoreSignals[0].stageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT;
+		semaphoreSignals[0].semaphore = renderComplete;
+
+		// timellinesemaphore
+		semaphoreSignals[1].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
+		semaphoreSignals[1].semaphore = timelineSemaphore;
+		semaphoreSignals[1].value = nextSignalValue;
+		semaphoreSignals[1].stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
+
+		VkCommandBufferSubmitInfo cmdSubmitInfo = {};
+		cmdSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+		cmdSubmitInfo.commandBuffer = res.commandBuffer;
+
+		VkSubmitInfo2 submitInfo = {};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+		submitInfo.waitSemaphoreInfoCount = 1;
+		submitInfo.pWaitSemaphoreInfos = &imageAquireWaitInfo;
+		submitInfo.commandBufferInfoCount = 1;
+		submitInfo.pCommandBufferInfos = &cmdSubmitInfo;
+		submitInfo.signalSemaphoreInfoCount = static_cast<uint32>(semaphoreSignals.size());
+		submitInfo.pSignalSemaphoreInfos = semaphoreSignals.data();
+		vkQueueSubmit2(gfxQueue, 1, &submitInfo, VK_NULL_HANDLE);
+
+		VkPresentInfoKHR presentInfo = {};
+		presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+		presentInfo.waitSemaphoreCount = 1;
+		presentInfo.pWaitSemaphores = &renderComplete;
+		presentInfo.swapchainCount = 1;
+		presentInfo.pSwapchains = &swapchainHandle;
+		presentInfo.pImageIndices = &imageIndex;
+		presentInfo.pResults = nullptr;
+
+		const VkResult presentResult = vkQueuePresentKHR(gfxQueue, &presentInfo);
+		if (presentResult == VK_ERROR_OUT_OF_DATE_KHR || presentResult == VK_SUBOPTIMAL_KHR)
+		{
+			bRequireRecreateSwapchain = true;
+		}
+		// EndFrame에 따로 하는 것이유는 스왑체인 재생성시에는 Render->EndFrame을 하지 않기때문이다.
+		++frameIndex;
+		++nextSignalValue;
 	}
 
 	void VulkanDevice::Initialize(SDL_Window* window, uint32 width, uint32 height)
@@ -245,6 +392,12 @@ namespace Dlight
 			vulkanSurface = VK_NULL_HANDLE;
 		}
 
+		if (debugMessenger)
+		{
+			vkDestroyDebugUtilsMessengerEXT(vulkanInstance, debugMessenger, nullptr);
+			debugMessenger = VK_NULL_HANDLE;
+		}
+
 		if (vulkanInstance)
 		{
 			vkDestroyInstance(vulkanInstance, nullptr);
@@ -340,6 +493,18 @@ namespace Dlight
 		}
 
 		volkLoadInstance(vulkanInstance);
+
+		// pNext의 콜백은 인스턴스 생성/소멸 중에만 유효하므로 실행 중 사용할 messenger를 별도로 생성한다.
+		if (useValidation)
+		{
+			const VkResult messengerResult = vkCreateDebugUtilsMessengerEXT(
+				vulkanInstance, &debugInfo, nullptr, &debugMessenger);
+			if (messengerResult != VK_SUCCESS)
+			{
+				DL_LOG_ERROR("Failed to create Vulkan debug messenger: ", messengerResult);
+				return false;
+			}
+		}
 		return true;
 	}
 
@@ -602,8 +767,8 @@ namespace Dlight
 			return false;
 		}
 
-		// per-frame image-acquire semaphores
-		for (FrameResources& res : frameResources)
+		// per-frame imageacquire semaphores
+		for (FrameResource& res : frameResources)
 		{
 			VkSemaphoreCreateInfo semaphoreInfo = {};
 			semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -619,7 +784,7 @@ namespace Dlight
 	}
 	bool VulkanDevice::CreateCommandBuffers()
 	{
-		for (FrameResources& res : frameResources)
+		for (FrameResource& res : frameResources)
 		{
 			VkCommandPoolCreateInfo poolInfo = {};
 

@@ -94,6 +94,58 @@ namespace Dlight
 
 	void Renderer::Render()
 	{
+		const auto frameCtx = device.GetCurrentRenderFrameContext();
+
+		VkRenderingAttachmentInfo colorAttachmentInfo = {};
+		colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+		colorAttachmentInfo.imageView = frameCtx.colorImageView;
+		colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		colorAttachmentInfo.clearValue.color = { 0.22f, 0.22f, 0.22f, 1.f };
+
+		VkRenderingAttachmentInfo depthAttachmentInfo = {};
+		depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+		depthAttachmentInfo.imageView = frameCtx.depthStencilImageView;
+		depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+		depthAttachmentInfo.clearValue.depthStencil = {1.f, 0};
+
+		VkRenderingInfo renderingInfo = {};
+		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
+		renderingInfo.renderArea.offset.x = 0;
+		renderingInfo.renderArea.offset.y = 0;
+		renderingInfo.renderArea.extent = frameCtx.extent;
+		renderingInfo.layerCount = 1;
+		renderingInfo.colorAttachmentCount = 1;
+		renderingInfo.pColorAttachments = &colorAttachmentInfo;
+		renderingInfo.pDepthAttachment = &depthAttachmentInfo;
+
+		vkCmdBeginRendering(frameCtx.commandBuffer, &renderingInfo);
+
+		{
+			VkViewport viewport = {};
+			viewport.x = 0;
+			viewport.y = static_cast<float>(frameCtx.extent.height);
+			viewport.width = static_cast<float>(frameCtx.extent.width);
+			// 다렉 좌표계를 따르고 마지막 뷰포트시 음수로 하여서 vulkan 좌표계와 일치
+			viewport.height = -static_cast<float>(frameCtx.extent.height);
+			viewport.minDepth = 0.0f;
+			viewport.maxDepth = 1.0f;
+			vkCmdSetViewport(frameCtx.commandBuffer, 0, 1, &viewport);
+
+			VkRect2D scissor = {};
+			scissor.offset.x = 0;
+			scissor.offset.y = 0;
+			scissor.extent = frameCtx.extent;
+			vkCmdSetScissor(frameCtx.commandBuffer, 0, 1, &scissor);
+
+			// draw triangle !!!!!!!
+			vkCmdBindPipeline(frameCtx.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipeline->GetPipeline());
+			vkCmdDraw(frameCtx.commandBuffer, 3, 1, 0, 0);
+		}
+		vkCmdEndRendering(frameCtx.commandBuffer);
 	}
 
 }

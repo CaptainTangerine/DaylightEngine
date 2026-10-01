@@ -21,6 +21,10 @@ namespace Dlight
 
 	public:
 		VkSwapchainKHR GetSwapchain() { return swapchain; };
+		VkImage		   GetSwapchianImage(uint32 index)  const { return swapchainImages[index]; };
+		VkImageView GetSwapchainImageView(uint32 index) const { return swapchainImageViews[index]; }
+		VkSemaphore GetRendercompleteSemaphore(uint32 index) const { return renderCompleteSemaphores[index]; };
+
 		uint32 GetWidth() const { return swapchainWidth; }
 		uint32 GetHeight() const { return swapchainHeight; }
 

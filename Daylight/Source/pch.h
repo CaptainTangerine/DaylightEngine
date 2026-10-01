@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdlib>
-
 // STL
 #include <cstddef>
 #include <cstdint>
@@ -12,6 +11,7 @@
 #include <utility>
 #include <vector>
 #include <array>
+#include <algorithm>
 
 #include <memory>
 

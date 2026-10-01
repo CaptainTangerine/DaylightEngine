@@ -1,7 +1,6 @@
 #include "pch.h"
 #include "VulkanSwapchain.h"
 #include "VulkanDevice.h"
-#include <cstdlib>
 
 namespace Dlight
 {
@@ -18,9 +17,6 @@ namespace Dlight
 
 	void VulkanSwapchain::Initialize(uint32 width, uint32 height)
 	{
-		swapchainWidth  = width;
-		swapchainHeight = height;
-
 		// 지원되는 포맷인지 검사
 		uint32 formatCount = 0;
 		if (vkGetPhysicalDeviceSurfaceFormatsKHR(device.GetPhysicalDevice(), device.GetSurface(), &formatCount, nullptr) != VK_SUCCESS)
@@ -65,6 +61,21 @@ namespace Dlight
 			std::abort();
 		}
 
+		VkExtent2D imageExtent{};
+		if (surfaceCaps.currentExtent.width != UINT32_MAX)
+		{
+			// 고정 크기 surface에서는 이벤트의 크기 대신 Vulkan이 조회한 현재 크기를 사용한다.
+			imageExtent = surfaceCaps.currentExtent;
+		}
+		else
+		{
+			// UINT32_MAX는 애플리케이션이 허용 범위 안에서 크기를 선택할 수 있다는 뜻이다.
+			imageExtent.width = std::clamp(width, surfaceCaps.minImageExtent.width, surfaceCaps.maxImageExtent.width);
+			imageExtent.height = std::clamp(height, surfaceCaps.minImageExtent.height, surfaceCaps.maxImageExtent.height);
+		}
+		swapchainWidth = imageExtent.width;
+		swapchainHeight = imageExtent.height;
+
 		// 스왑체인 생성
 		VkSwapchainCreateInfoKHR swapchainCreateInfo{};
 
@@ -73,8 +84,7 @@ namespace Dlight
 		swapchainCreateInfo.minImageCount = surfaceCaps.minImageCount;
 		swapchainCreateInfo.imageFormat = swapchainFormat;
 		swapchainCreateInfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
-		swapchainCreateInfo.imageExtent.width = swapchainWidth;
-		swapchainCreateInfo.imageExtent.height = swapchainHeight;
+		swapchainCreateInfo.imageExtent = imageExtent;
 		swapchainCreateInfo.imageArrayLayers = 1;
 		swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 		swapchainCreateInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;

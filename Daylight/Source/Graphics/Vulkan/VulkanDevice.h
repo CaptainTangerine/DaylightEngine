@@ -10,11 +10,21 @@ namespace Dlight
 {
 	class VulkanSwapchain;
 
-	struct FrameResources
+	struct FrameResource
 	{
 		VkCommandPool commandPool = { nullptr };
 		VkCommandBuffer commandBuffer = { nullptr };
 		VkSemaphore imageAcquiredSemaphore = { nullptr };
+	};
+
+	struct RenderFrameContext
+	{
+		VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+		// BeginFrame transitions these to COLOR_ATTACHMENT_OPTIMAL and
+		// DEPTH_STENCIL_ATTACHMENT_OPTIMAL respectively; clear before use.
+		VkImageView colorImageView = VK_NULL_HANDLE;
+		VkImageView depthStencilImageView = VK_NULL_HANDLE;
+		VkExtent2D extent{};
 	};
 
 	class VulkanDevice
@@ -42,6 +52,8 @@ namespace Dlight
 		VkImage GetDepthStencilImage() const { return depthStencilImage; }
 		VkImageView GetDepthStencilImageView() const { return depthStencilImageView; }
 
+		RenderFrameContext GetCurrentRenderFrameContext() const;
+
 	public:
 		// 현재 사용가능한 이미지인덱스를 PresentEngine에서 가져온다.
 		bool AcquireNextImage();
@@ -51,6 +63,9 @@ namespace Dlight
 		void EndFrame();
 
 	private:
+		FrameResource& GetCurrentFrameResource() { return frameResources[frameIndex % MaxFramesInFlight]; }
+		const FrameResource& GetCurrentFrameResource() const { return frameResources[frameIndex % MaxFramesInFlight]; }
+
 		void Initialize(SDL_Window* window, uint32 width, uint32 height);
 		void Shutdown();
 
@@ -77,6 +92,7 @@ namespace Dlight
 
 		// Vulkan Core
 		VkInstance vulkanInstance = { VK_NULL_HANDLE };
+		VkDebugUtilsMessengerEXT debugMessenger = { VK_NULL_HANDLE };
 		VkSurfaceKHR vulkanSurface = { VK_NULL_HANDLE };
 		VkPhysicalDevice physicalDevice = { VK_NULL_HANDLE };
 		VkDevice device = { VK_NULL_HANDLE };
@@ -100,7 +116,7 @@ namespace Dlight
 
 		// Frame and synchroniztion resources
 		VkSemaphore timelineSemaphore = { nullptr };
-		std::array<FrameResources, MaxFramesInFlight> frameResources;
+		std::array<FrameResource, MaxFramesInFlight> frameResources;
 		uint64 frameIndex = { 0 };
 		uint64 nextSignalValue = { MaxFramesInFlight + 1 };
 	};
