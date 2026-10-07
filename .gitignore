@@ -5,6 +5,7 @@
 
 # --- Visual Studio / build outputs ---
 .vs/
+/out/build/
 [Bb]in/
 [Oo]bj/
 [Dd]ebug/

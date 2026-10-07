@@ -1,6 +1,8 @@
 #include "pch.h"
 #include "Renderer.h"
 
+#include "Core/Paths.h"
+
 #include "Graphics/Vulkan/VulkanDevice.h"
 #include "Graphics/Vulkan/VulkanSwapchain.h"
 #include "Graphics/Vulkan/VulkanPipeline.h"
@@ -33,13 +35,15 @@ namespace Dlight
 	bool Renderer::CreatePipelines()
 	{
 		// 셰이더 컴파일 -> 추후 shaderManager로 관리 
+		const std::filesystem::path shaderPath = Paths::GetShaderPath(L"Triangle.hlsl");
+
 		auto vertCode = shaderCompiler.Compile(
-			L"Shaders/Triangle.hlsl",
+			shaderPath.c_str(),
 			ShaderConventions::VertexEntry,
 			L"vs_6_0");
 
 		auto fragCode = shaderCompiler.Compile(
-			L"Shaders/Triangle.hlsl",
+			shaderPath.c_str(),
 			ShaderConventions::PixelEntry,
 			L"ps_6_0");
 
