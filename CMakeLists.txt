@@ -6,9 +6,33 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+list(APPEND CMAKE_MODULE_PATH
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake"
+)
+
+find_package(TinyGLTF REQUIRED)
+
 find_package(Vulkan REQUIRED COMPONENTS dxc)
 find_package(SDL3 CONFIG REQUIRED COMPONENTS SDL3-shared
     HINTS "$ENV{VULKAN_SDK}/cmake"
+)
+
+add_library(tinygltf STATIC
+    "${TinyGLTF_SOURCE_FILE}"
+)
+
+target_include_directories(tinygltf PUBLIC
+    "${TinyGLTF_INCLUDE_DIR}"
+)
+
+target_compile_definitions(tinygltf PRIVATE
+    TINYGLTF3_ENABLE_FS
+)
+
+set_target_properties(tinygltf PROPERTIES
+    C_STANDARD 11
+    C_STANDARD_REQUIRED ON
+    C_EXTENSIONS OFF
 )
 
 add_executable(Daylight)
@@ -34,6 +58,7 @@ target_link_libraries(Daylight PRIVATE
     Vulkan::Headers
     Vulkan::dxc_lib
     SDL3::SDL3-shared
+    tinygltf
 )
 
 # 전처리기 정의
