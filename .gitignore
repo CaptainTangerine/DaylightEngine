@@ -1,7 +1,7 @@
 # ===== DaylightEngine .gitignore =====
 
 # --- Reference material (do NOT commit; large, reference-only) ---
-ThirdParty/_reference/
+/References/
 
 # --- Visual Studio / build outputs ---
 .vs/

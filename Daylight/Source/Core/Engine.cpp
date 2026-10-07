@@ -56,6 +56,8 @@ namespace Dlight
 
 		vulkanDevice = std::make_unique<VulkanDevice>(
 			window, static_cast<uint32>(pixelWidth), static_cast<uint32>(pixelHeight));
+		width = static_cast<uint32>(pixelWidth);
+		height = static_cast<uint32>(pixelHeight);
 
 		renderer = std::make_unique<Renderer>(*vulkanDevice);
 	}
@@ -87,12 +89,17 @@ namespace Dlight
 				break;
 			}
 
-			if (width == 0 || height == 0)
+			if ((SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED) || width == 0 || height == 0)
 			{
+				SDL_Delay(10);
 				continue;
 			}
 
-			vulkanDevice->UpdateSwapchain(width, height);
+			if (!vulkanDevice->UpdateSwapchain(width, height))
+			{
+				SDL_Delay(10);
+				continue;
+			}
 
 			if (vulkanDevice->AcquireNextImage())
 			{

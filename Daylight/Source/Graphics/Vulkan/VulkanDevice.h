@@ -57,7 +57,8 @@ namespace Dlight
 	public:
 		// 현재 사용가능한 이미지인덱스를 PresentEngine에서 가져온다.
 		bool AcquireNextImage();
-		void UpdateSwapchain(uint32 width, uint32 height);
+		// false이면 재생성이 보류되었으므로 이번 프레임을 건너뛴다.
+		bool UpdateSwapchain(uint32 width, uint32 height);
 
 		void BeginFrame();
 		void EndFrame();

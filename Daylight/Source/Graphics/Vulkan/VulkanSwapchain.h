@@ -29,7 +29,8 @@ namespace Dlight
 		uint32 GetHeight() const { return swapchainHeight; }
 
 	public:
-		void Initialize(uint32 width, uint32 height);
+		// 크기가 0이면 기존 자원을 유지하고 생성을 보류한다.
+		bool Initialize(uint32 width, uint32 height);
 		void Shutdown();
 
 	private:

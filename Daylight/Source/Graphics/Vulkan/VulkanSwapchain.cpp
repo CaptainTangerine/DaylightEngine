@@ -15,8 +15,13 @@ namespace Dlight
 		Shutdown();
 	}
 
-	void VulkanSwapchain::Initialize(uint32 width, uint32 height)
+	bool VulkanSwapchain::Initialize(uint32 width, uint32 height)
 	{
+		if (width == 0 || height == 0)
+		{
+			return false;
+		}
+
 		// 지원되는 포맷인지 검사
 		uint32 formatCount = 0;
 		if (vkGetPhysicalDeviceSurfaceFormatsKHR(device.GetPhysicalDevice(), device.GetSurface(), &formatCount, nullptr) != VK_SUCCESS)
@@ -73,6 +78,14 @@ namespace Dlight
 			imageExtent.width = std::clamp(width, surfaceCaps.minImageExtent.width, surfaceCaps.maxImageExtent.width);
 			imageExtent.height = std::clamp(height, surfaceCaps.minImageExtent.height, surfaceCaps.maxImageExtent.height);
 		}
+		// 최소화 시 이벤트의 크기가 남아 있어도 Vulkan surface는 0x0일 수 있다.
+		if (imageExtent.width == 0 || imageExtent.height == 0)
+		{
+			return false;
+		}
+
+		// 최종 크기를 확인한 뒤에만 기존 스왑체인을 해제한다.
+		Shutdown();
 		swapchainWidth = imageExtent.width;
 		swapchainHeight = imageExtent.height;
 
@@ -136,7 +149,7 @@ namespace Dlight
 				std::abort();
 			}
 		}
-		
+		return true;
 	}
 
 	void VulkanSwapchain::Shutdown()

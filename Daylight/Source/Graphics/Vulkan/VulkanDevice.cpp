@@ -111,21 +111,23 @@ namespace Dlight
 		return true;
 	}
 
-	void VulkanDevice::UpdateSwapchain(uint32 width, uint32 height)
+	bool VulkanDevice::UpdateSwapchain(uint32 width, uint32 height)
 	{
-		if (!bRequireRecreateSwapchain)
-		{
-			return;
-		}
-
 		if (width == 0 || height == 0)
 		{
-			return;
+			return false;
+		}
+
+		if (!bRequireRecreateSwapchain)
+		{
+			return true;
 		}
 
 		vkDeviceWaitIdle(device);
-		swapchain->Shutdown();
-		swapchain->Initialize(width, height);
+		if (!swapchain->Initialize(width, height))
+		{
+			return false;
+		}
 
 		if (!CreateDepthStencilResources())
 		{
@@ -134,6 +136,7 @@ namespace Dlight
 		}
 
 		bRequireRecreateSwapchain = false;
+		return true;
 	}
 
 	RenderFrameContext VulkanDevice::GetCurrentRenderFrameContext() const
@@ -335,7 +338,12 @@ namespace Dlight
 
 		swapchain = std::make_unique<VulkanSwapchain>(*this, width, height);
 
-		if (!CreateDepthStencilResources())
+		if (!swapchain->GetSwapchain())
+		{
+			// 시작할 때 최소화되어 있어도 복원 후 자원을 생성할 수 있게 한다.
+			bRequireRecreateSwapchain = true;
+		}
+		else if (!CreateDepthStencilResources())
 		{
 			DL_LOG_ERROR("Failed to create depth-stencil resources");
 			std::abort();
