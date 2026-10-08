@@ -57,6 +57,10 @@ void Dlight::VulkanPipeline::Initialize(const GfxPipelineDesc& desc)
 	// 1
 	VkPipelineVertexInputStateCreateInfo vertInputInfo = {};
 	vertInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertInputInfo.vertexBindingDescriptionCount = static_cast<uint32>(desc.vertexBindings.size());
+	vertInputInfo.pVertexBindingDescriptions = desc.vertexBindings.data();
+	vertInputInfo.vertexAttributeDescriptionCount = static_cast<uint32>(desc.vertexAttributes.size());
+	vertInputInfo.pVertexAttributeDescriptions = desc.vertexAttributes.data();
 
 	// 2 
 	VkPipelineInputAssemblyStateCreateInfo inputAssemblyInfo = {};

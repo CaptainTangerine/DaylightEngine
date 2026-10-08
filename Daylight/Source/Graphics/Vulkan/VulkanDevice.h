@@ -20,8 +20,7 @@ namespace Dlight
 	struct RenderFrameContext
 	{
 		VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-		// BeginFrame transitions these to COLOR_ATTACHMENT_OPTIMAL and
-		// DEPTH_STENCIL_ATTACHMENT_OPTIMAL respectively; clear before use.
+
 		VkImageView colorImageView = VK_NULL_HANDLE;
 		VkImageView depthStencilImageView = VK_NULL_HANDLE;
 		VkExtent2D extent{};

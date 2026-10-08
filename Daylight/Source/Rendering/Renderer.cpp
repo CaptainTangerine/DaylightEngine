@@ -2,12 +2,14 @@
 #include "Renderer.h"
 
 #include "Core/Paths.h"
+#include "Graphics/VertexFormat.h"
 
 #include "Graphics/Vulkan/VulkanDevice.h"
 #include "Graphics/Vulkan/VulkanSwapchain.h"
 #include "Graphics/Vulkan/VulkanPipeline.h"
-
+#include "Graphics/Vulkan/VulkanVertexBuffer.h"
 #include "ShaderConventions.h"
+
 
 namespace Dlight
 {
@@ -24,7 +26,10 @@ namespace Dlight
 
 	void Renderer::Initialize()
 	{
-		CreatePipelines();
+		triangleVertexBuffer = std::make_unique<VulkanVertexBuffer>(device, triangleVertices.data(), 
+			static_cast<VkDeviceSize>(sizeof(triangleVertices[0])*triangleVertices.size()));
+
+		CreateTrianglePipelines();
 	}
 
 	void Renderer::Shutdown()
@@ -32,7 +37,7 @@ namespace Dlight
 		DestroyPipelines();
 	}
 
-	bool Renderer::CreatePipelines()
+	bool Renderer::CreateTrianglePipelines()
 	{
 		// 셰이더 컴파일 -> 추후 shaderManager로 관리 
 		const std::filesystem::path shaderPath = Paths::GetShaderPath(L"Triangle.hlsl");
@@ -71,12 +76,31 @@ namespace Dlight
 			std::abort();
 		}
 
-
 		GfxPipelineDesc desc{};
 		desc.vertexShader = vertModule;
 		desc.fragmentShader = fragModule;
 		desc.vertexEntryPoint = ShaderConventions::VertexEntry;
 		desc.fragmentEntryPoint = ShaderConventions::PixelEntry;
+
+
+		VkVertexInputBindingDescription vertexBinding{};
+		vertexBinding.binding = 0;
+		vertexBinding.stride = sizeof(VertexFormat::ColoredVertex);
+		vertexBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+		desc.vertexBindings.push_back(vertexBinding);
+
+		// dx11 InputLayout 같은 개념 
+		desc.vertexAttributes.resize(2);
+		desc.vertexAttributes[0].location = 0;
+		desc.vertexAttributes[0].binding = 0;
+		desc.vertexAttributes[0].format = VK_FORMAT_R32G32_SFLOAT;
+		desc.vertexAttributes[0].offset = offsetof(VertexFormat::ColoredVertex, position);
+
+		desc.vertexAttributes[1].location = 1;
+		desc.vertexAttributes[1].binding = 0;
+		desc.vertexAttributes[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+		desc.vertexAttributes[1].offset = offsetof(VertexFormat::ColoredVertex, color);
+
 		desc.colorFormat = VulkanSwapchain::swapchainFormat;
 		desc.depthFormat = device.GetDepthStencilFormat();
 
@@ -147,7 +171,11 @@ namespace Dlight
 
 			// draw triangle !!!!!!!
 			vkCmdBindPipeline(frameCtx.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipeline->GetPipeline());
-			vkCmdDraw(frameCtx.commandBuffer, 3, 1, 0, 0);
+			
+			const VkBuffer vertexBuffer = triangleVertexBuffer->GetBuffer();
+			const VkDeviceSize offset = 0;
+			vkCmdBindVertexBuffers(frameCtx.commandBuffer, 0, 1, &vertexBuffer, &offset);
+			vkCmdDraw(frameCtx.commandBuffer, static_cast<uint32_t>(triangleVertices.size()), 1, 0, 0);
 		}
 		vkCmdEndRendering(frameCtx.commandBuffer);
 	}

@@ -1,32 +1,24 @@
-struct VertexOutput
+struct VSInput
+{
+    [[vk::location(0)]] float2 inPosition : POSITION;
+    [[vk::location(1)]] float3 inColor : COLOR0;
+};
+
+struct VSOutput
 {
     float4 position : SV_Position;
-    float4 color : COLOR0;
+    float3 color : COLOR0;
 };
 
-static const float2 positions[3] =
+VSOutput VS_Main(VSInput input)
 {
-    float2(0.0f, 0.5f),
-    float2(-0.5f, -0.5f),
-    float2(0.5f, -0.5f)
-};
-
-static const float4 colors[3] =
-{
-    float4(1.0f, 0.0f, 0.0f, 1.f),
-    float4(0.0f, 1.0f, 0.0f, 1.f),
-    float4(0.0f, 0.0f, 1.0f, 1.f)
-};
-
-VertexOutput VS_Main(uint vertexID : SV_VertexID)
-{
-    VertexOutput output;
-    output.position = float4(positions[vertexID], 0.0f, 1.0f);
-    output.color = colors[vertexID];
+    VSOutput output;
+    output.position = float4(input.inPosition, 0.0f, 1.0f);
+    output.color = input.inColor;
     return output;
 }
 
-float4 PS_Main(VertexOutput input) : SV_Target0
+float4 PS_Main(VSOutput input) : SV_Target0
 {
-    return input.color;
+    return float4(input.color, 1.f);
 }

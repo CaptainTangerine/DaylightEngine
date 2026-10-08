@@ -1,6 +1,7 @@
 #pragma once
 #include "vulkan/vulkan.h"
 #include "Rendering/ShaderConventions.h"
+#include <vector>
 
 namespace Dlight
 {
@@ -11,6 +12,9 @@ namespace Dlight
 
 		const char* vertexEntryPoint = ShaderConventions::VertexEntry;
 		const char* fragmentEntryPoint = ShaderConventions::PixelEntry;
+
+		std::vector<VkVertexInputBindingDescription> vertexBindings;
+		std::vector<VkVertexInputAttributeDescription> vertexAttributes;
 
 		VkFormat colorFormat = VK_FORMAT_UNDEFINED;
 		VkFormat depthFormat = VK_FORMAT_UNDEFINED;
