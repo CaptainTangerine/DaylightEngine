@@ -7,7 +7,7 @@
 #include "Graphics/Vulkan/VulkanDevice.h"
 #include "Graphics/Vulkan/VulkanSwapchain.h"
 #include "Graphics/Vulkan/VulkanPipeline.h"
-#include "Graphics/Vulkan/VulkanVertexBuffer.h"
+#include "Graphics/Vulkan/VulkanBuffer.h"
 #include "ShaderConventions.h"
 
 
@@ -26,9 +26,14 @@ namespace Dlight
 
 	void Renderer::Initialize()
 	{
-		triangleVertexBuffer = std::make_unique<VulkanVertexBuffer>(device, triangleVertices.data(), 
-			static_cast<VkDeviceSize>(sizeof(triangleVertices[0])*triangleVertices.size()));
+		triangleVertexBuffer = device.CreateVertexBuffer(
+			triangleVertices.data(),
+			static_cast<VkDeviceSize>(sizeof(triangleVertices[0]) * triangleVertices.size()));
 
+		triangleIndexBuffer = device.CreateIndexBuffer(
+			triangleIndices.data(),
+			static_cast<VkDeviceSize>(sizeof(triangleIndices[0]) * triangleVertices.size()));
+		
 		CreateTrianglePipelines();
 	}
 
@@ -76,7 +81,7 @@ namespace Dlight
 			std::abort();
 		}
 
-		GfxPipelineDesc desc{};
+		FGfxPipelineDesc desc{};
 		desc.vertexShader = vertModule;
 		desc.fragmentShader = fragModule;
 		desc.vertexEntryPoint = ShaderConventions::VertexEntry;
@@ -85,7 +90,7 @@ namespace Dlight
 
 		VkVertexInputBindingDescription vertexBinding{};
 		vertexBinding.binding = 0;
-		vertexBinding.stride = sizeof(VertexFormat::ColoredVertex);
+		vertexBinding.stride = sizeof(VertexFormat::FColoredVertex);
 		vertexBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 		desc.vertexBindings.push_back(vertexBinding);
 
@@ -94,12 +99,12 @@ namespace Dlight
 		desc.vertexAttributes[0].location = 0;
 		desc.vertexAttributes[0].binding = 0;
 		desc.vertexAttributes[0].format = VK_FORMAT_R32G32_SFLOAT;
-		desc.vertexAttributes[0].offset = offsetof(VertexFormat::ColoredVertex, position);
+		desc.vertexAttributes[0].offset = offsetof(VertexFormat::FColoredVertex, position);
 
 		desc.vertexAttributes[1].location = 1;
 		desc.vertexAttributes[1].binding = 0;
 		desc.vertexAttributes[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		desc.vertexAttributes[1].offset = offsetof(VertexFormat::ColoredVertex, color);
+		desc.vertexAttributes[1].offset = offsetof(VertexFormat::FColoredVertex, color);
 
 		desc.colorFormat = VulkanSwapchain::swapchainFormat;
 		desc.depthFormat = device.GetDepthStencilFormat();
@@ -174,8 +179,12 @@ namespace Dlight
 			
 			const VkBuffer vertexBuffer = triangleVertexBuffer->GetBuffer();
 			const VkDeviceSize offset = 0;
+			
 			vkCmdBindVertexBuffers(frameCtx.commandBuffer, 0, 1, &vertexBuffer, &offset);
-			vkCmdDraw(frameCtx.commandBuffer, static_cast<uint32_t>(triangleVertices.size()), 1, 0, 0);
+			vkCmdBindIndexBuffer(frameCtx.commandBuffer, triangleIndexBuffer->GetBuffer(), 0, VK_INDEX_TYPE_UINT16);
+			//vkCmdDraw(frameCtx.commandBuffer, static_cast<uint32_t>(triangleVertices.size()), 1, 0, 0);
+			vkCmdDrawIndexed(frameCtx.commandBuffer, static_cast<uint32_t>(triangleIndices.size()), 1, 0, 0, 0);
+
 		}
 		vkCmdEndRendering(frameCtx.commandBuffer);
 	}

@@ -24,8 +24,8 @@ namespace Dlight
 	private:
 		// Window
 		SDL_Window* window = { nullptr } ;
-		uint32 width = { 1920 };
-		uint32 height = { 1080 };
+		uint32 width = { 1280 };
+		uint32 height = { 720 };
 		bool	 bRunning = { false };
 
 		std::unique_ptr<VulkanDevice> vulkanDevice = { nullptr };

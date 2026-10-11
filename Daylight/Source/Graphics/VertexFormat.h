@@ -5,7 +5,7 @@ namespace Dlight
 {
 	namespace VertexFormat
 	{
-		struct ColoredVertex
+		struct FColoredVertex
 		{
 			Vector2 position;
 			Vector3 color;

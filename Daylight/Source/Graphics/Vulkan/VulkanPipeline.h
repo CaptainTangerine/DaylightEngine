@@ -5,7 +5,7 @@
 
 namespace Dlight
 {
-	struct GfxPipelineDesc
+	struct FGfxPipelineDesc
 	{
 		VkShaderModule vertexShader = VK_NULL_HANDLE;
 		VkShaderModule fragmentShader = VK_NULL_HANDLE;
@@ -25,7 +25,7 @@ namespace Dlight
 	class VulkanPipeline
 	{
 	public:
-		VulkanPipeline(VulkanDevice& _device, const GfxPipelineDesc& desc);
+		VulkanPipeline(VulkanDevice& _device, const FGfxPipelineDesc& desc);
 		~VulkanPipeline();
 
 		VulkanPipeline(const VulkanPipeline& other) = delete;
@@ -35,7 +35,7 @@ namespace Dlight
 		VkPipeline GetPipeline() const { return pipeline; }
 		
 	private:
-		void Initialize(const GfxPipelineDesc& desc);
+		void Initialize(const FGfxPipelineDesc& desc);
 		void Shutdown();
 
 	private:

@@ -4,20 +4,23 @@
 #include <Volk/volk.h>
 #include <vma/vk_mem_alloc.h>
 
+#include "VulkanResourceState.h"
+
 struct SDL_Window;
 
 namespace Dlight
 {
 	class VulkanSwapchain;
+	class VulkanBuffer;
 
-	struct FrameResource
+	struct FFrameResource
 	{
 		VkCommandPool commandPool = { nullptr };
 		VkCommandBuffer commandBuffer = { nullptr };
 		VkSemaphore imageAcquiredSemaphore = { nullptr };
 	};
 
-	struct RenderFrameContext
+	struct FRenderFrameContext
 	{
 		VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
 
@@ -51,7 +54,7 @@ namespace Dlight
 		VkImage GetDepthStencilImage() const { return depthStencilImage; }
 		VkImageView GetDepthStencilImageView() const { return depthStencilImageView; }
 
-		RenderFrameContext GetCurrentRenderFrameContext() const;
+		FRenderFrameContext GetCurrentRenderFrameContext() const;
 
 	public:
 		// 현재 사용가능한 이미지인덱스를 PresentEngine에서 가져온다.
@@ -62,9 +65,17 @@ namespace Dlight
 		void BeginFrame();
 		void EndFrame();
 
+	public:
+		std::unique_ptr<VulkanBuffer> CreateVertexBuffer(const void* data, VkDeviceSize byteSize);
+		std::unique_ptr<VulkanBuffer> CreateIndexBuffer(const void* data, VkDeviceSize byteSize);
 	private:
-		FrameResource& GetCurrentFrameResource() { return frameResources[frameIndex % MaxFramesInFlight]; }
-		const FrameResource& GetCurrentFrameResource() const { return frameResources[frameIndex % MaxFramesInFlight]; }
+		// CPU Data -> DeviceLocal
+		void UploadBuffer(VulkanBuffer& destination, const void* data, VkDeviceSize size, VkDeviceSize destinationOffset, EResourceState beforeState, EResourceState finalState);
+		void TransitionBuffer(VkCommandBuffer commandBuffer, const VulkanBuffer& buffer, EResourceState src, EResourceState dst);
+
+	private:
+		FFrameResource& GetCurrentFrameResource() { return frameResources[frameIndex % MaxFramesInFlight]; }
+		const FFrameResource& GetCurrentFrameResource() const { return frameResources[frameIndex % MaxFramesInFlight]; }
 
 		void Initialize(SDL_Window* window, uint32 width, uint32 height);
 		void Shutdown();
@@ -81,6 +92,7 @@ namespace Dlight
 		void DestroyDepthStencilResources();
 
 
+	private:
 		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugCallback(
 			VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
 			VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -116,7 +128,7 @@ namespace Dlight
 
 		// Frame and synchroniztion resources
 		VkSemaphore timelineSemaphore = { nullptr };
-		std::array<FrameResource, MaxFramesInFlight> frameResources;
+		std::array<FFrameResource, MaxFramesInFlight> frameResources;
 		uint64 frameIndex = { 0 };
 		uint64 nextSignalValue = { MaxFramesInFlight + 1 };
 	};

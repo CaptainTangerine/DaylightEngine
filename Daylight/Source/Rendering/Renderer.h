@@ -7,7 +7,7 @@ namespace Dlight
 	class VulkanDevice;
 	class VulkanSwapchain;
 	class VulkanPipeline;
-	class VulkanVertexBuffer;
+	class VulkanBuffer;
 
 	class Renderer
 	{
@@ -36,13 +36,20 @@ namespace Dlight
 		// Pipeline
 		std::unique_ptr<VulkanPipeline> trianglePipeline = { nullptr };
 		
-		//Triangle VertexBuffer
-		const std::vector<VertexFormat::ColoredVertex> triangleVertices =
+		//Triangle Buffer
+		const std::vector<VertexFormat::FColoredVertex> triangleVertices =
 		{
 			{{0.f, 0.5f}, {1.0f, 0.0f, 0.0f}},
 			{{-0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
 			{{0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}}
 		};
-		std::unique_ptr<VulkanVertexBuffer> triangleVertexBuffer = { nullptr }; 
+		const std::vector<uint16> triangleIndices =
+		{
+			0, 1, 2
+		};
+
+		std::unique_ptr<VulkanBuffer> triangleVertexBuffer = { nullptr };
+		std::unique_ptr<VulkanBuffer> triangleIndexBuffer = { nullptr };
+
 	};
 }

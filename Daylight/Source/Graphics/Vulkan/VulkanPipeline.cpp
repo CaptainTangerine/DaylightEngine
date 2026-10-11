@@ -4,7 +4,7 @@
 #include "Graphics/Vulkan/VulkanSwapchain.h"
 #include "Rendering/Renderer.h"
 
-Dlight::VulkanPipeline::VulkanPipeline(VulkanDevice& _device, const GfxPipelineDesc& desc)
+Dlight::VulkanPipeline::VulkanPipeline(VulkanDevice& _device, const FGfxPipelineDesc& desc)
 	: device(_device)
 {
 	Initialize(desc);
@@ -15,7 +15,7 @@ Dlight::VulkanPipeline::~VulkanPipeline()
 	Shutdown();
 }
 
-void Dlight::VulkanPipeline::Initialize(const GfxPipelineDesc& desc)
+void Dlight::VulkanPipeline::Initialize(const FGfxPipelineDesc& desc)
 {
 	// vkPipelineLayout
 	// 디스크립터나 push Constants 정보 

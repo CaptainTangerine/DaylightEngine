@@ -8,6 +8,7 @@
 #include <SDL3/SDL_vulkan.h>
 
 #include "VulkanSwapchain.h"
+#include "VulkanBuffer.h"
 
 namespace Dlight
 {
@@ -43,7 +44,6 @@ namespace Dlight
 		return VK_FALSE;
 	}
 
-
 	VulkanDevice::VulkanDevice(SDL_Window* window, uint32 width, uint32 height)
 	{
 		Initialize(window, width, height);
@@ -76,7 +76,7 @@ namespace Dlight
 			std::abort();
 		}
 
-		FrameResource& res = GetCurrentFrameResource();
+		FFrameResource& res = GetCurrentFrameResource();
 		const VkResult resetResult = vkResetCommandPool(device, res.commandPool, 0);
 		if (resetResult != VK_SUCCESS)
 		{
@@ -139,9 +139,9 @@ namespace Dlight
 		return true;
 	}
 
-	RenderFrameContext VulkanDevice::GetCurrentRenderFrameContext() const
+	FRenderFrameContext VulkanDevice::GetCurrentRenderFrameContext() const
 	{
-		RenderFrameContext context{};
+		FRenderFrameContext context{};
 		context.commandBuffer = GetCurrentFrameResource().commandBuffer;
 		context.colorImageView = swapchain->GetSwapchainImageView(imageIndex);
 		context.depthStencilImageView = depthStencilImageView;
@@ -151,7 +151,7 @@ namespace Dlight
 
 	void VulkanDevice::BeginFrame()
 	{
-		FrameResource& res = GetCurrentFrameResource();
+		FFrameResource& res = GetCurrentFrameResource();
 
 		VkCommandBufferBeginInfo cmdBeginInfo = {};
 		cmdBeginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -208,7 +208,7 @@ namespace Dlight
 
 	void VulkanDevice::EndFrame()
 	{
-		FrameResource& res = GetCurrentFrameResource();
+		FFrameResource& res = GetCurrentFrameResource();
 		const VkSemaphore renderComplete = swapchain->GetRendercompleteSemaphore(imageIndex);
 		const VkSwapchainKHR swapchainHandle = swapchain->GetSwapchain();
 
@@ -294,6 +294,184 @@ namespace Dlight
 		// EndFrame에 따로 하는 것이유는 스왑체인 재생성시에는 Render->EndFrame을 하지 않기때문이다.
 		++frameIndex;
 		++nextSignalValue;
+	}
+
+	std::unique_ptr<VulkanBuffer> VulkanDevice::CreateVertexBuffer(const void* data, VkDeviceSize byteSize)
+	{
+		FVulkanBufferDesc desc = {};
+		desc.size = byteSize;
+		desc.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		desc.memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+		auto buffer = std::make_unique<VulkanBuffer>(*this, desc);
+
+		UploadBuffer(*buffer, data, byteSize, 0, EResourceState::Undefined, EResourceState::VertexBuffer);
+
+		return buffer;
+	}
+
+	std::unique_ptr<VulkanBuffer> VulkanDevice::CreateIndexBuffer(const void* data, VkDeviceSize byteSize)
+	{
+		FVulkanBufferDesc desc = {};
+		desc.size = byteSize;
+		desc.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		desc.memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+		auto buffer = std::make_unique<VulkanBuffer>(*this, desc);
+
+		UploadBuffer(*buffer, data, byteSize, 0, EResourceState::Undefined, EResourceState::IndexBuffer);
+
+		return buffer;
+	}
+
+	void VulkanDevice::UploadBuffer(VulkanBuffer& destination, const void* data, VkDeviceSize size, VkDeviceSize destinationOffset, EResourceState beforeState, EResourceState finalState)
+	{
+		if (nullptr == data || size == 0 || destinationOffset + size > destination.GetSize())
+		{
+			DL_LOG_ERROR("Invalid buffer upload data or range");
+			std::abort();
+		}
+
+		if (!(destination.GetUsage() & VK_BUFFER_USAGE_TRANSFER_DST_BIT))
+		{
+			DL_LOG_ERROR("Upload destination is missing VK_BUFFER_USAGE_TRANSFER_DST_BIT");
+			std::abort();
+		}
+
+		// Staging 버퍼 생성
+		FVulkanBufferDesc stagingDesc{};
+		stagingDesc.size = size;
+		stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		stagingDesc.memoryUsage = VMA_MEMORY_USAGE_AUTO;
+		stagingDesc.allocationFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+		VulkanBuffer stagingBuffer(*this, stagingDesc);
+
+		if (nullptr == stagingBuffer.GetMappedData())
+		{
+			DL_LOG_ERROR("Staging buffer is not mapped");
+			std::abort();
+		}
+
+		std::memcpy(stagingBuffer.GetMappedData(), data, static_cast<size_t>(size));
+		stagingBuffer.FlushAllocation(0, size);
+
+		// 일회용 커맨드 버퍼 생성
+		VkCommandPool commandPool = VK_NULL_HANDLE;
+
+		VkCommandPoolCreateInfo poolInfo = {};
+		poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+		poolInfo.queueFamilyIndex = gfxQueueFamilyIndex;
+
+		if (VK_SUCCESS != vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool))
+		{
+			DL_LOG_ERROR("Can't create Command Pool");
+			std::abort();
+		}
+
+		VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+
+		VkCommandBufferAllocateInfo allocateInfo{};
+		allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		allocateInfo.commandPool = commandPool;
+		allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocateInfo.commandBufferCount = 1;
+
+		if (VK_SUCCESS != vkAllocateCommandBuffers(device, &allocateInfo, &commandBuffer))
+		{
+			DL_LOG_ERROR("Can't Allocate Command Buffer");
+			std::abort();
+		}
+
+		VkCommandBufferBeginInfo beginInfo = {};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+		if (VK_SUCCESS != vkBeginCommandBuffer(commandBuffer, &beginInfo))
+		{
+			DL_LOG_ERROR("Can't begin upload Command Buffer");
+			std::abort();
+		}
+
+		if (beforeState != EResourceState::Undefined)
+		{
+			TransitionBuffer(
+				commandBuffer,
+				destination,
+				beforeState,
+				EResourceState::CopyDestination
+			);
+		}
+
+		// 버퍼 복사 명령
+		VkBufferCopy copyRegion = {};
+		copyRegion.srcOffset = 0;
+		copyRegion.dstOffset = destinationOffset;
+		copyRegion.size = size;
+
+		vkCmdCopyBuffer(commandBuffer, stagingBuffer.GetBuffer(), destination.GetBuffer(), 1, &copyRegion);
+
+		// 복사 -> GPU read 베리어 설정
+		TransitionBuffer(commandBuffer, destination, EResourceState::CopyDestination, finalState);
+
+		if (VK_SUCCESS != vkEndCommandBuffer(commandBuffer))
+		{
+			DL_LOG_ERROR("Can't end upload Command Buffer");
+			std::abort();
+		}
+
+		// 제출
+		VkCommandBufferSubmitInfo commandSubmitInfo = {};
+		commandSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+		commandSubmitInfo.commandBuffer = commandBuffer;
+
+		VkSubmitInfo2 submitInfo = {};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+		submitInfo.commandBufferInfoCount = 1;
+		submitInfo.pCommandBufferInfos = &commandSubmitInfo;
+
+		if (VK_SUCCESS != vkQueueSubmit2(gfxQueue, 1, &submitInfo, VK_NULL_HANDLE))
+		{
+			DL_LOG_ERROR("Can't submit buffer upload");
+			std::abort();
+		}
+		if (VK_SUCCESS != vkQueueWaitIdle(gfxQueue))
+		{
+			DL_LOG_ERROR("Can't wait for buffer upload");
+			std::abort();
+		}
+
+		vkDestroyCommandPool(device, commandPool, nullptr);
+
+	}
+
+	void VulkanDevice::TransitionBuffer(VkCommandBuffer commandBuffer, const VulkanBuffer& buffer, EResourceState _src, EResourceState _dst)
+	{
+		// 이전 접근이 끝난 뒤 다음 접근이 시작되도록 버퍼 메모리 의존성을 설정한다.
+		// GPU 정점 읽는 단계전에 복사가 끝나야함
+
+		auto src = ConvertResourceState(_src);
+		auto dst = ConvertResourceState(_dst);
+
+		VkBufferMemoryBarrier2 barrier = {};
+		barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
+		barrier.srcStageMask = src.stage;
+		barrier.srcAccessMask = src.access;
+		barrier.dstStageMask = dst.stage;
+		barrier.dstAccessMask = dst.access;
+		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.buffer = buffer.GetBuffer();
+		barrier.offset = 0;
+		barrier.size = buffer.GetSize();
+
+		VkDependencyInfo depInfo = {};
+		depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		depInfo.bufferMemoryBarrierCount = 1;
+		depInfo.pBufferMemoryBarriers = &barrier;
+
+		vkCmdPipelineBarrier2(commandBuffer, &depInfo);
 	}
 
 	void VulkanDevice::Initialize(SDL_Window* window, uint32 width, uint32 height)
@@ -758,6 +936,7 @@ namespace Dlight
 		}
 	}
 
+
 	bool VulkanDevice::CreateSyncResources()
 	{
 		VkSemaphoreTypeCreateInfo semaphoreTypeInfo = {};
@@ -776,7 +955,7 @@ namespace Dlight
 		}
 
 		// per-frame imageacquire semaphores
-		for (FrameResource& res : frameResources)
+		for (FFrameResource& res : frameResources)
 		{
 			VkSemaphoreCreateInfo semaphoreInfo = {};
 			semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -792,7 +971,7 @@ namespace Dlight
 	}
 	bool VulkanDevice::CreateCommandBuffers()
 	{
-		for (FrameResource& res : frameResources)
+		for (FFrameResource& res : frameResources)
 		{
 			VkCommandPoolCreateInfo poolInfo = {};
 
