@@ -11,6 +11,8 @@ namespace Dlight
         IndexBuffer,
 
         CopyDestination,
+
+        FragmentShaderRead,
     };
 
     struct FVulkanResourceState

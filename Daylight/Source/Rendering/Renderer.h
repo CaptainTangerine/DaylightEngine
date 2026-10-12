@@ -8,6 +8,8 @@ namespace Dlight
 	class VulkanSwapchain;
 	class VulkanPipeline;
 	class VulkanBuffer;
+	class VulkanTexture2D;
+	class VulkanSampler;
 
 	class Renderer
 	{
@@ -50,6 +52,10 @@ namespace Dlight
 
 		std::unique_ptr<VulkanBuffer> triangleVertexBuffer = { nullptr };
 		std::unique_ptr<VulkanBuffer> triangleIndexBuffer = { nullptr };
+
+		// 텍스처와 공용 샘플러
+		std::unique_ptr<VulkanTexture2D> testTexture = { nullptr };
+		std::unique_ptr<VulkanSampler> linearRepeatSampler = { nullptr };
 
 	};
 }

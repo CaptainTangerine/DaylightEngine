@@ -8,7 +8,10 @@
 #include "Graphics/Vulkan/VulkanSwapchain.h"
 #include "Graphics/Vulkan/VulkanPipeline.h"
 #include "Graphics/Vulkan/VulkanBuffer.h"
+#include "Graphics/Vulkan/VulkanTexture.h"
+#include "Graphics/Vulkan/VulkanSampler.h"
 #include "ShaderConventions.h"
+#include "Utils/Image.h"
 
 
 namespace Dlight
@@ -26,6 +29,30 @@ namespace Dlight
 
 	void Renderer::Initialize()
 	{
+		const std::filesystem::path imagePath = Paths::GetAssetPath(L"Image/Test.jpg");
+		Image image(imagePath.string());
+		testTexture = device.CreateTexture2D(image);
+
+		// 여러 텍스처에서 함께 사용할 선형 보간 및 반복 샘플러
+		VkSamplerCreateInfo samplerInfo = {};
+		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		samplerInfo.magFilter = VK_FILTER_LINEAR;
+		samplerInfo.minFilter = VK_FILTER_LINEAR;
+		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		samplerInfo.anisotropyEnable = VK_FALSE;
+		samplerInfo.maxAnisotropy = 1.0f;
+		samplerInfo.compareEnable = VK_FALSE;
+		samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+		samplerInfo.minLod = 0.0f;
+		samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
+		samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
+		samplerInfo.unnormalizedCoordinates = VK_FALSE;
+
+		linearRepeatSampler = std::make_unique<VulkanSampler>(device, samplerInfo);
+
 		triangleVertexBuffer = device.CreateVertexBuffer(
 			triangleVertices.data(),
 			static_cast<VkDeviceSize>(sizeof(triangleVertices[0]) * triangleVertices.size()));
@@ -40,6 +67,9 @@ namespace Dlight
 	void Renderer::Shutdown()
 	{
 		DestroyPipelines();
+
+		linearRepeatSampler.reset();
+		testTexture.reset();
 	}
 
 	bool Renderer::CreateTrianglePipelines()

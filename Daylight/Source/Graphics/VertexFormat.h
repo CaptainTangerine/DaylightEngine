@@ -11,5 +11,10 @@ namespace Dlight
 			Vector3 color;
 		};
 
+		struct FTexturedVertex
+		{
+			Vector2 position;
+			Vector2 uv;
+		};
 	}
 }

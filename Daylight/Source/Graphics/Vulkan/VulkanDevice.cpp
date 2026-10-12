@@ -9,6 +9,8 @@
 
 #include "VulkanSwapchain.h"
 #include "VulkanBuffer.h"
+#include "VulkanTexture.h"
+#include "Utils/Image.h"
 
 namespace Dlight
 {
@@ -322,6 +324,177 @@ namespace Dlight
 		UploadBuffer(*buffer, data, byteSize, 0, EResourceState::Undefined, EResourceState::IndexBuffer);
 
 		return buffer;
+	}
+
+	std::unique_ptr<VulkanTexture2D> VulkanDevice::CreateTexture2D(Image& image)
+	{
+		FVulkanTextureDesc desc = {};
+		desc.width = static_cast<uint32>(image.GetWidth());
+		desc.height = static_cast<uint32>(image.GetHeight());
+		desc.format = image.GetFormat();
+		desc.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		desc.memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+
+		
+
+		auto texture = std::make_unique<VulkanTexture2D>(*this, desc);
+
+		UploadImage(*texture, image.GetData(), image.GetSize(), EResourceState::Undefined, EResourceState::FragmentShaderRead);
+
+		return texture;
+	}
+
+	void VulkanDevice::UploadImage(VulkanTexture2D& destination, const void* data, VkDeviceSize byteSize, EResourceState beforeState, EResourceState finalState)
+	{
+		if (nullptr == data || byteSize == 0)
+		{
+			DL_LOG_ERROR("Invalid image upload data");
+			std::abort();
+		}
+
+		if (!(destination.GetUsage() & VK_IMAGE_USAGE_TRANSFER_DST_BIT))
+		{
+			DL_LOG_ERROR("Upload destination is missing VK_IMAGE_USAGE_TRANSFER_DST_BIT");
+			std::abort();
+		}
+
+		// Staging 버퍼 생성
+		FVulkanBufferDesc stagingDesc{};
+		stagingDesc.size = byteSize;
+		stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+		stagingDesc.memoryUsage = VMA_MEMORY_USAGE_AUTO;
+		stagingDesc.allocationFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+		VulkanBuffer stagingBuffer(*this, stagingDesc);
+
+		if (nullptr == stagingBuffer.GetMappedData())
+		{
+			DL_LOG_ERROR("Staging buffer is not mapped");
+			std::abort();
+		}
+
+		std::memcpy(stagingBuffer.GetMappedData(), data, static_cast<size_t>(byteSize));
+
+		stagingBuffer.FlushAllocation(0, byteSize);
+
+		// 일회용 커맨드 버퍼 생성
+		VkCommandPool commandPool = VK_NULL_HANDLE;
+
+		VkCommandPoolCreateInfo poolInfo = {};
+		poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+		poolInfo.queueFamilyIndex = gfxQueueFamilyIndex;
+
+		if (VK_SUCCESS != vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool))
+		{
+			DL_LOG_ERROR("Can't create Command Pool");
+			std::abort();
+		}
+
+		VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+
+		VkCommandBufferAllocateInfo allocateInfo{};
+		allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		allocateInfo.commandPool = commandPool;
+		allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocateInfo.commandBufferCount = 1;
+
+		if (VK_SUCCESS != vkAllocateCommandBuffers(device, &allocateInfo, &commandBuffer))
+		{
+			DL_LOG_ERROR("Can't Allocate Command Buffer");
+			std::abort();
+		}
+
+		VkCommandBufferBeginInfo beginInfo = {};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+		if (VK_SUCCESS != vkBeginCommandBuffer(commandBuffer, &beginInfo))
+		{
+			DL_LOG_ERROR("Can't begin upload Command Buffer");
+			std::abort();
+		}
+
+		// 이미지 레이아웃 전환 
+		TransitionImage(commandBuffer, destination, beforeState, EResourceState::CopyDestination);
+		
+		VkBufferImageCopy region{};
+		region.bufferRowLength = 0;
+		region.bufferImageHeight = 0;
+		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		region.imageSubresource.mipLevel = 0;
+		region.imageSubresource.baseArrayLayer = 0;
+		region.imageSubresource.layerCount = 1;
+
+		region.imageOffset = { 0, 0, 0 };
+		region.imageExtent = {
+			destination.GetWidth(),
+			destination.GetHeight(),
+			1
+		};
+
+		vkCmdCopyBufferToImage(commandBuffer, stagingBuffer.GetBuffer(), destination.GetImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+		
+		TransitionImage(commandBuffer, destination, EResourceState::CopyDestination, finalState);
+
+		if (VK_SUCCESS != vkEndCommandBuffer(commandBuffer))
+		{
+			DL_LOG_ERROR("Can't end upload Command Buffer");
+			std::abort();
+		}
+
+		// 제출
+		VkCommandBufferSubmitInfo commandSubmitInfo = {};
+		commandSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+		commandSubmitInfo.commandBuffer = commandBuffer;
+
+		VkSubmitInfo2 submitInfo = {};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+		submitInfo.commandBufferInfoCount = 1;
+		submitInfo.pCommandBufferInfos = &commandSubmitInfo;
+
+		if (VK_SUCCESS != vkQueueSubmit2(gfxQueue, 1, &submitInfo, VK_NULL_HANDLE))
+		{
+			DL_LOG_ERROR("Can't submit buffer upload");
+			std::abort();
+		}
+		if (VK_SUCCESS != vkQueueWaitIdle(gfxQueue))
+		{
+			DL_LOG_ERROR("Can't wait for buffer upload");
+			std::abort();
+		}
+
+		vkDestroyCommandPool(device, commandPool, nullptr);
+	}
+
+	void VulkanDevice::TransitionImage(VkCommandBuffer commandBuufer, const VulkanTexture2D& texture, EResourceState _src, EResourceState _dst)
+	{
+		auto src = ConvertResourceState(_src);
+		auto dst = ConvertResourceState(_dst);
+
+		VkImageMemoryBarrier2 barrier = {};
+		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		barrier.srcStageMask = src.stage;
+		barrier.dstStageMask = dst.stage;
+		barrier.srcAccessMask = src.access;
+		barrier.dstAccessMask = dst.access;
+		barrier.oldLayout = src.layout;
+		barrier.newLayout = dst.layout;
+
+		barrier.image = texture.GetImage();
+
+		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		barrier.subresourceRange.baseMipLevel = 0;
+		barrier.subresourceRange.levelCount = 1;
+		barrier.subresourceRange.baseArrayLayer = 0;
+		barrier.subresourceRange.layerCount = 1;
+
+		VkDependencyInfo depInfo = {};
+		depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		depInfo.imageMemoryBarrierCount = 1;
+		depInfo.pImageMemoryBarriers = &barrier;
+
+		vkCmdPipelineBarrier2(commandBuufer, &depInfo);
 	}
 
 	void VulkanDevice::UploadBuffer(VulkanBuffer& destination, const void* data, VkDeviceSize size, VkDeviceSize destinationOffset, EResourceState beforeState, EResourceState finalState)

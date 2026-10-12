@@ -30,8 +30,14 @@ namespace Dlight
         case EResourceState::CopyDestination:
             return{
                 VK_PIPELINE_STAGE_2_TRANSFER_BIT,
-                 VK_ACCESS_2_TRANSFER_WRITE_BIT,
-                VK_IMAGE_LAYOUT_UNDEFINED
+                VK_ACCESS_2_TRANSFER_WRITE_BIT,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+            };
+        case EResourceState::FragmentShaderRead:
+            return{
+                VK_PIPELINE_STAGE_2_FRAGMENT_SHADER_BIT,
+                VK_ACCESS_2_SHADER_SAMPLED_READ_BIT,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
             };
         }
         return {};

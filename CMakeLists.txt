@@ -51,6 +51,7 @@ target_include_directories(Daylight PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/Daylight/Source"
     "${CMAKE_CURRENT_SOURCE_DIR}/External/DirectXMath/Inc"
     "${CMAKE_CURRENT_SOURCE_DIR}/External/SimpleMath"
+    "${CMAKE_CURRENT_SOURCE_DIR}/External/stb"
 )
 
 # 라이브러리 타깃 연결
@@ -132,7 +133,11 @@ add_custom_target(DaylightRuntimeFiles
         "${CMAKE_CURRENT_SOURCE_DIR}/Daylight/Shaders"
         "$<TARGET_FILE_DIR:Daylight>/Shaders"
 
-    COMMENT "Copying runtime DLLs and shaders"
+    COMMAND "${CMAKE_COMMAND}" -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/Daylight/Asset/Image"
+        "$<TARGET_FILE_DIR:Daylight>/Assets/Image"
+
+    COMMENT "실행에 필요한 DLL, 셰이더 및 이미지 복사"
     VERBATIM
 )
 
