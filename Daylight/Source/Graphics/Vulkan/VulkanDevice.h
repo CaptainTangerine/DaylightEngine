@@ -58,6 +58,11 @@ namespace Dlight
 
 		FRenderFrameContext GetCurrentRenderFrameContext() const;
 
+		VkDescriptorSetLayout GetBindlessLayout() const { return bindlessLayout; }
+		VkDescriptorSet GetBindlessSet() const { return bindlessSet; }
+		VkDescriptorSetLayout GetSamplerLayout() const { return samplerLayout; }
+		VkDescriptorSet GetSamplerSet() const { return samplerSet; }
+
 	public:
 		// 현재 사용가능한 이미지인덱스를 PresentEngine에서 가져온다.
 		bool AcquireNextImage();
@@ -96,6 +101,10 @@ namespace Dlight
 		bool CreateCommandBuffers();
 		bool CreateDepthStencilResources();
 		void DestroyDepthStencilResources();
+
+		bool CreateBindlessDescriptors();
+		bool CreateSamplerDescriptors();
+		void DestroyDescriptors();
 
 
 	private:
@@ -137,5 +146,17 @@ namespace Dlight
 		std::array<FFrameResource, MaxFramesInFlight> frameResources;
 		uint64 frameIndex = { 0 };
 		uint64 nextSignalValue = { MaxFramesInFlight + 1 };
+
+		// Bindless DesciptorSet
+		constexpr static uint32 MaxTextures = { 64 };
+		VkDescriptorPool bindlessPool = { VK_NULL_HANDLE };
+		VkDescriptorSetLayout bindlessLayout = { VK_NULL_HANDLE };
+		VkDescriptorSet bindlessSet = { VK_NULL_HANDLE };
+
+		// Sampler DescriptorSet
+		VkDescriptorPool samplerPool = { VK_NULL_HANDLE };
+		VkDescriptorSetLayout samplerLayout = { VK_NULL_HANDLE };
+		VkDescriptorSet samplerSet = { VK_NULL_HANDLE };
+
 	};
 }

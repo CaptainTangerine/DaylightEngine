@@ -22,6 +22,8 @@ namespace Dlight
 
 	public:
 		bool CreateTrianglePipelines();
+		bool CreateImageTestPipelines();
+
 		void DestroyPipelines();
 
 		void Render();
@@ -37,8 +39,9 @@ namespace Dlight
 
 		// Pipeline
 		std::unique_ptr<VulkanPipeline> trianglePipeline = { nullptr };
-		
-		//Triangle Buffer
+		std::unique_ptr<VulkanPipeline> imageTestPipeline = { nullptr };
+
+		// 색상 삼각형 정점과 인덱스
 		const std::vector<VertexFormat::FColoredVertex> triangleVertices =
 		{
 			{{0.f, 0.5f}, {1.0f, 0.0f, 0.0f}},
@@ -52,6 +55,23 @@ namespace Dlight
 
 		std::unique_ptr<VulkanBuffer> triangleVertexBuffer = { nullptr };
 		std::unique_ptr<VulkanBuffer> triangleIndexBuffer = { nullptr };
+
+		// 이미지를 매핑할 사각형 정점과 인덱스
+		const std::vector<VertexFormat::FTexturedVertex> imageVertices =
+		{
+			{{-0.5f, 0.5f}, {0.f, 0.f}},
+			{{-0.5f, -0.5f}, {0.f, 1.f}},
+			{{0.5f, -0.5f}, {1.f, 1.f}},
+			{{0.5f, 0.5f}, {1.f, 0.f}}
+		};
+		const std::vector<uint16> imageIndices =
+		{
+			0, 1, 2,
+			0, 2, 3
+		};
+
+		std::unique_ptr<VulkanBuffer> imageVertexBuffer = { nullptr };
+		std::unique_ptr<VulkanBuffer> imageIndexBuffer = { nullptr };
 
 		// 텍스처와 공용 샘플러
 		std::unique_ptr<VulkanTexture2D> testTexture = { nullptr };

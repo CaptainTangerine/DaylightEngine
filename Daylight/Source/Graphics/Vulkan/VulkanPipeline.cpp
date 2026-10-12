@@ -21,8 +21,8 @@ void Dlight::VulkanPipeline::Initialize(const FGfxPipelineDesc& desc)
 	// 디스크립터나 push Constants 정보 
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipelineLayoutInfo.setLayoutCount = 0;
-	pipelineLayoutInfo.pushConstantRangeCount = 0;
+	pipelineLayoutInfo.setLayoutCount = static_cast<uint32>(desc.descriptorSetLayouts.size());
+	pipelineLayoutInfo.pSetLayouts = desc.descriptorSetLayouts.data();
 
 	if (VK_SUCCESS != vkCreatePipelineLayout(device.GetDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout))
 	{

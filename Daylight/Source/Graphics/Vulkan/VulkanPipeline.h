@@ -13,6 +13,8 @@ namespace Dlight
 		const char* vertexEntryPoint = ShaderConventions::VertexEntry;
 		const char* fragmentEntryPoint = ShaderConventions::PixelEntry;
 
+		std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
+
 		std::vector<VkVertexInputBindingDescription> vertexBindings;
 		std::vector<VkVertexInputAttributeDescription> vertexAttributes;
 

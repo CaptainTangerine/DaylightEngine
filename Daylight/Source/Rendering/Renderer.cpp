@@ -13,7 +13,6 @@
 #include "ShaderConventions.h"
 #include "Utils/Image.h"
 
-
 namespace Dlight
 {
 	Renderer::Renderer(VulkanDevice& _device)
@@ -33,7 +32,7 @@ namespace Dlight
 		Image image(imagePath.string());
 		testTexture = device.CreateTexture2D(image);
 
-		// 여러 텍스처에서 함께 사용할 선형 보간 및 반복 샘플러
+		// 선형 반복 샘플러 
 		VkSamplerCreateInfo samplerInfo = {};
 		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
 		samplerInfo.magFilter = VK_FILTER_LINEAR;
@@ -53,15 +52,50 @@ namespace Dlight
 
 		linearRepeatSampler = std::make_unique<VulkanSampler>(device, samplerInfo);
 
+		imageVertexBuffer = device.CreateVertexBuffer(
+			imageVertices.data(),
+			static_cast<VkDeviceSize>(sizeof(imageVertices[0]) * imageVertices.size()));
+
+		imageIndexBuffer = device.CreateIndexBuffer(
+			imageIndices.data(),
+			static_cast<VkDeviceSize>(sizeof(imageIndices[0]) * imageIndices.size()));
+
 		triangleVertexBuffer = device.CreateVertexBuffer(
 			triangleVertices.data(),
 			static_cast<VkDeviceSize>(sizeof(triangleVertices[0]) * triangleVertices.size()));
 
 		triangleIndexBuffer = device.CreateIndexBuffer(
 			triangleIndices.data(),
-			static_cast<VkDeviceSize>(sizeof(triangleIndices[0]) * triangleVertices.size()));
+			static_cast<VkDeviceSize>(sizeof(triangleIndices[0]) * triangleIndices.size()));
 		
+		VkDescriptorImageInfo textureInfo = {};
+		textureInfo.imageView = testTexture->GetImageView();
+		textureInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		
+		VkDescriptorImageInfo samplerDescriptorInfo = {};
+		samplerDescriptorInfo.sampler = linearRepeatSampler->GetSampler();
+
+		VkWriteDescriptorSet writes[2] = {};
+		writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writes[0].dstSet = device.GetBindlessSet();
+		writes[0].dstBinding = 0;
+		writes[0].dstArrayElement = 0;
+		writes[0].descriptorCount = 1;
+		writes[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+		writes[0].pImageInfo = &textureInfo;
+
+		writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		writes[1].dstSet = device.GetSamplerSet();
+		writes[1].dstBinding = 0;
+		writes[1].dstArrayElement = 0;
+		writes[1].descriptorCount = 1;
+		writes[1].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+		writes[1].pImageInfo = &samplerDescriptorInfo;
+
+		vkUpdateDescriptorSets(device.GetDevice(), 2, writes, 0, nullptr);
+
 		CreateTrianglePipelines();
+		CreateImageTestPipelines();
 	}
 
 	void Renderer::Shutdown()
@@ -147,11 +181,96 @@ namespace Dlight
 		return true;
 	}
 
+	bool Renderer::CreateImageTestPipelines()
+	{
+		// 셰이더 컴파일 -> 추후 shaderManager로 관리 
+		const std::filesystem::path shaderPath = Paths::GetShaderPath(L"ImageTest.hlsl");
+
+		auto vertCode = shaderCompiler.Compile(
+			shaderPath.c_str(),
+			ShaderConventions::VertexEntry,
+			L"vs_6_0");
+
+		auto fragCode = shaderCompiler.Compile(
+			shaderPath.c_str(),
+			ShaderConventions::PixelEntry,
+			L"ps_6_0");
+
+		// 셰이더 모듈 만들기 
+		VkShaderModule vertModule = VK_NULL_HANDLE;
+		VkShaderModule fragModule = VK_NULL_HANDLE;
+
+		VkShaderModuleCreateInfo vertModuleInfo{};
+		vertModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		vertModuleInfo.codeSize = vertCode.size() * sizeof(uint32);
+		vertModuleInfo.pCode = vertCode.data();
+		if (VK_SUCCESS != vkCreateShaderModule(device.GetDevice(), &vertModuleInfo, nullptr, &vertModule))
+		{
+			DL_LOG_ERROR("Failed to create vertex shader module");
+			std::abort();
+		}
+
+		VkShaderModuleCreateInfo fragModuleInfo{};
+		fragModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		fragModuleInfo.codeSize = fragCode.size() * sizeof(uint32);
+		fragModuleInfo.pCode = fragCode.data();
+		if (VK_SUCCESS != vkCreateShaderModule(device.GetDevice(), &fragModuleInfo, nullptr, &fragModule))
+		{
+			DL_LOG_ERROR("Failed to create fragment shader module");
+			std::abort();
+		}
+
+		FGfxPipelineDesc desc{};
+		desc.descriptorSetLayouts =
+		{
+			device.GetBindlessLayout(),
+			device.GetSamplerLayout()
+		};
+
+		desc.vertexShader = vertModule;
+		desc.fragmentShader = fragModule;
+		desc.vertexEntryPoint = ShaderConventions::VertexEntry;
+		desc.fragmentEntryPoint = ShaderConventions::PixelEntry;
+
+		VkVertexInputBindingDescription vertexBinding{};
+		vertexBinding.binding = 0;
+		vertexBinding.stride = sizeof(VertexFormat::FTexturedVertex);
+		vertexBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+		desc.vertexBindings.push_back(vertexBinding);
+
+		// dx11 InputLayout 같은 개념 
+		desc.vertexAttributes.resize(2);
+		desc.vertexAttributes[0].location = 0;
+		desc.vertexAttributes[0].binding = 0;
+		desc.vertexAttributes[0].format = VK_FORMAT_R32G32_SFLOAT;
+		desc.vertexAttributes[0].offset = offsetof(VertexFormat::FTexturedVertex, position);
+
+		desc.vertexAttributes[1].location = 1;
+		desc.vertexAttributes[1].binding = 0;
+		desc.vertexAttributes[1].format = VK_FORMAT_R32G32_SFLOAT;
+		desc.vertexAttributes[1].offset = offsetof(VertexFormat::FTexturedVertex, texcoord);
+
+		desc.colorFormat = VulkanSwapchain::swapchainFormat;
+		desc.depthFormat = device.GetDepthStencilFormat();
+
+		imageTestPipeline = std::make_unique<VulkanPipeline>(device, desc);
+
+		vkDestroyShaderModule(device.GetDevice(), vertModule, nullptr);
+		vkDestroyShaderModule(device.GetDevice(), fragModule, nullptr);
+
+		return true;
+	}
+
 	void Renderer::DestroyPipelines()
 	{
 		if (trianglePipeline)
 		{
 			trianglePipeline.reset();
+		}
+
+		if (imageTestPipeline)
+		{
+			imageTestPipeline.reset();
 		}
 	}
 
@@ -204,16 +323,33 @@ namespace Dlight
 			scissor.extent = frameCtx.extent;
 			vkCmdSetScissor(frameCtx.commandBuffer, 0, 1, &scissor);
 
-			// draw triangle !!!!!!!
-			vkCmdBindPipeline(frameCtx.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipeline->GetPipeline());
+			VkDescriptorSet sets[2] =
+			{
+				device.GetBindlessSet(),
+				device.GetSamplerSet()
+			};
+
+			vkCmdBindDescriptorSets(
+				frameCtx.commandBuffer,
+				VK_PIPELINE_BIND_POINT_GRAPHICS,
+				imageTestPipeline->GetPipelineLayout(),
+				0,
+				2,
+				sets,
+				0,
+				nullptr);
 			
-			const VkBuffer vertexBuffer = triangleVertexBuffer->GetBuffer();
+			//vkCmdBindPipeline(frameCtx.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipeline->GetPipeline());
+			vkCmdBindPipeline(frameCtx.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imageTestPipeline->GetPipeline());
+			
+
+			const VkBuffer vertexBuffer = imageVertexBuffer->GetBuffer();
 			const VkDeviceSize offset = 0;
 			
 			vkCmdBindVertexBuffers(frameCtx.commandBuffer, 0, 1, &vertexBuffer, &offset);
-			vkCmdBindIndexBuffer(frameCtx.commandBuffer, triangleIndexBuffer->GetBuffer(), 0, VK_INDEX_TYPE_UINT16);
-			//vkCmdDraw(frameCtx.commandBuffer, static_cast<uint32_t>(triangleVertices.size()), 1, 0, 0);
-			vkCmdDrawIndexed(frameCtx.commandBuffer, static_cast<uint32_t>(triangleIndices.size()), 1, 0, 0, 0);
+			vkCmdBindIndexBuffer(frameCtx.commandBuffer, imageIndexBuffer->GetBuffer(), 0, VK_INDEX_TYPE_UINT16);
+			vkCmdDrawIndexed(frameCtx.commandBuffer, static_cast<uint32_t>(imageIndices.size()), 1, 0, 0, 0);
+
 
 		}
 		vkCmdEndRendering(frameCtx.commandBuffer);

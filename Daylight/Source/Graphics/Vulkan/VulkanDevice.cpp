@@ -711,10 +711,24 @@ namespace Dlight
 			DL_LOG_ERROR("Can't create command buffer objects");
 			std::abort();
 		}
+
+		if (!CreateBindlessDescriptors())
+		{
+			DL_LOG_ERROR("Can't create bindless descriptor set");
+			std::abort();
+		}
+
+		if (!CreateSamplerDescriptors())
+		{
+			DL_LOG_ERROR("Can't create smapler descriptor set");
+			std::abort();
+		}
 	}
 
 	void VulkanDevice::Shutdown()
 	{
+		DestroyDescriptors();
+
 		DestroyDepthStencilResources();
 
 		if (timelineSemaphore)
@@ -959,7 +973,9 @@ namespace Dlight
 
 		if (!supportedFeatures13.dynamicRendering ||
 			!supportedFeatures13.synchronization2 ||
-			!supportedFeatures12.timelineSemaphore)
+			!supportedFeatures12.timelineSemaphore ||
+			!supportedFeatures12.descriptorBindingPartiallyBound || 
+			!supportedFeatures12.descriptorBindingSampledImageUpdateAfterBind)
 		{
 			DL_LOG_ERROR("Physical device doesn't meet the feature requirement");
 			return false;
@@ -979,6 +995,8 @@ namespace Dlight
 		enabledFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
 		enabledFeatures12.pNext = &enabledFeatures13;
 		enabledFeatures12.timelineSemaphore = VK_TRUE;
+		enabledFeatures12.descriptorBindingPartiallyBound = VK_TRUE;
+		enabledFeatures12.descriptorBindingSampledImageUpdateAfterBind = VK_TRUE;
 
 		VkPhysicalDeviceFeatures2 enabledFeatures{};
 		enabledFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
@@ -1107,6 +1125,144 @@ namespace Dlight
 			depthStencilImage = nullptr;
 			depthStencilImageAllocation = nullptr;
 		}
+	}
+
+	bool VulkanDevice::CreateBindlessDescriptors()
+	{
+		VkDescriptorPoolSize poolSize = {};
+		poolSize.type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+		poolSize.descriptorCount = MaxTextures;
+
+		VkDescriptorPoolCreateInfo poolInfo = {};
+		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+		poolInfo.maxSets = 1;
+		poolInfo.poolSizeCount = 1;
+		poolInfo.pPoolSizes = &poolSize;
+
+		if (VK_SUCCESS != vkCreateDescriptorPool(device, &poolInfo, nullptr, &bindlessPool))
+		{
+			DL_LOG_ERROR("Failed to create bindless descriptor pool");
+			return false;
+		}
+
+		VkDescriptorSetLayoutBinding textureBinding = {};
+		textureBinding.binding = 0;
+		textureBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+		textureBinding.descriptorCount = MaxTextures;
+		textureBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		
+		VkDescriptorBindingFlags bindingFlags =
+			VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT |
+			VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+		VkDescriptorSetLayoutBindingFlagsCreateInfo flagsInfo = {};
+		flagsInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+		flagsInfo.bindingCount = 1;
+		flagsInfo.pBindingFlags = &bindingFlags;
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.pNext = &flagsInfo;
+		layoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+		layoutInfo.bindingCount = 1;
+		layoutInfo.pBindings = &textureBinding;
+
+		if (VK_SUCCESS != vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &bindlessLayout))
+		{
+			DL_LOG_ERROR("Failed to create bindless descriptor set layout");
+			return false;
+		}
+
+		// bindless 디스크립션 할당
+		VkDescriptorSetAllocateInfo allocateInfo = {};
+		allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocateInfo.descriptorPool = bindlessPool;
+		allocateInfo.descriptorSetCount = 1;
+		allocateInfo.pSetLayouts = &bindlessLayout;
+
+		if (VK_SUCCESS != vkAllocateDescriptorSets(device, &allocateInfo, &bindlessSet))
+		{
+			DL_LOG_ERROR("Failed to allocate bindless descriptor set");
+			return false;
+		}
+
+
+		return true;
+	}
+
+	bool VulkanDevice::CreateSamplerDescriptors()
+	{
+		// 샘플러 디스크립터 하나를 할당할 공간
+		VkDescriptorPoolSize poolSize = {};
+		poolSize.type = VK_DESCRIPTOR_TYPE_SAMPLER;
+		poolSize.descriptorCount = 1;
+
+		VkDescriptorPoolCreateInfo poolInfo = {};
+		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolInfo.maxSets = 1;
+		poolInfo.poolSizeCount = 1;
+		poolInfo.pPoolSizes = &poolSize;
+
+		if (VK_SUCCESS != vkCreateDescriptorPool(
+			device, &poolInfo, nullptr, &samplerPool))
+		{
+			DL_LOG_ERROR("Failed to create sampler descriptor pool");
+			return false;
+		}
+
+		// binding 0에 공용 샘플러 하나를 정의
+		VkDescriptorSetLayoutBinding samplerBinding = {};
+		samplerBinding.binding = 0;
+		samplerBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+		samplerBinding.descriptorCount = 1;
+		samplerBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = 1;
+		layoutInfo.pBindings = &samplerBinding;
+
+		if (VK_SUCCESS != vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &samplerLayout))
+		{
+			DL_LOG_ERROR("Failed to create sampler descriptor set layout");
+			return false;
+		}
+
+		// 샘플러용 세트 하나를 pool에서 할당
+		VkDescriptorSetAllocateInfo allocateInfo = {};
+		allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocateInfo.descriptorPool = samplerPool;
+		allocateInfo.descriptorSetCount = 1;
+		allocateInfo.pSetLayouts = &samplerLayout;
+
+		if (VK_SUCCESS != vkAllocateDescriptorSets(device, &allocateInfo, &samplerSet))
+		{
+			DL_LOG_ERROR("Failed to allocate sampler descriptor set");
+			return false;
+		}
+
+		return true;
+	}
+
+	void VulkanDevice::DestroyDescriptors()
+	{
+		if (bindlessLayout)
+		{
+			vkDestroyDescriptorSetLayout(device, bindlessLayout, nullptr);
+		}
+		if (bindlessPool)
+		{
+			vkDestroyDescriptorPool(device, bindlessPool, nullptr);
+		}
+		if (samplerLayout)
+		{
+			vkDestroyDescriptorSetLayout(device, samplerLayout, nullptr);
+		}
+		if (samplerPool)
+		{
+			vkDestroyDescriptorPool(device, samplerPool, nullptr);
+		}
+
 	}
 
 

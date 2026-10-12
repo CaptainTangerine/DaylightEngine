@@ -14,7 +14,7 @@ namespace Dlight
 		struct FTexturedVertex
 		{
 			Vector2 position;
-			Vector2 uv;
+			Vector2 texcoord;
 		};
 	}
 }
