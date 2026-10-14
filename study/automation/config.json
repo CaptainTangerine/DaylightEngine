@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "project": "DaylightEngine",
+  "timezone": "Asia/Seoul",
+  "calendar_id": "primary",
+  "conflict_calendar_ids": [
+    "primary",
+    "c_classroomabf78e95@group.calendar.google.com",
+    "c_classroom26d01c88@group.calendar.google.com",
+    "ko.south_korea#holiday@group.v.calendar.google.com"
+  ],
+  "calendar_writes_enabled": true,
+  "writer_owner": "codex",
+  "chatgpt_schedule_verified_disabled": true,
+  "writer_transition_confirmed_on": "2026-10-14",
+  "writer_transition_basis": "사용자가 기존 ChatGPT 예약 등록 중지와 Codex 단독 등록을 명시적으로 확인함",
+  "work_start": "10:00",
+  "work_end": "20:00",
+  "study_weekdays": [0, 1, 2, 3, 4],
+  "unavailable_dates": {
+    "2026-10-16": "외출",
+    "2026-10-17": "결혼식"
+  },
+  "linear_algebra_sequence": null,
+  "linear_algebra_anchor": "2026-10-14",
+  "linear_algebra_start": "14:00",
+  "linear_algebra_end": "18:00",
+  "plan_routines": true,
+  "blender_start": "20:00",
+  "blender_end": "22:00",
+  "blender_minutes": 30,
+  "snapshot_max_age_minutes": 15
+}

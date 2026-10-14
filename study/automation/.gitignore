@@ -1,0 +1,8 @@
+runtime/
+__pycache__/
+.venv/
+credentials*.json
+client_secret*.json
+token*.json
+.env
+*.pem
