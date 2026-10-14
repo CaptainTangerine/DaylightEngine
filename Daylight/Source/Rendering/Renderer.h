@@ -8,7 +8,7 @@ namespace Dlight
 	class VulkanSwapchain;
 	class VulkanPipeline;
 	class VulkanBuffer;
-	class VulkanTexture2D;
+	class VulkanImage;
 	class VulkanSampler;
 
 	class Renderer
@@ -73,8 +73,8 @@ namespace Dlight
 		std::unique_ptr<VulkanBuffer> imageVertexBuffer = { nullptr };
 		std::unique_ptr<VulkanBuffer> imageIndexBuffer = { nullptr };
 
-		// 텍스처와 공용 샘플러
-		std::unique_ptr<VulkanTexture2D> testTexture = { nullptr };
+		// 이미지와 공용 샘플러
+		std::unique_ptr<VulkanImage> testImage = { nullptr };
 		std::unique_ptr<VulkanSampler> linearRepeatSampler = { nullptr };
 
 	};

@@ -1,8 +1,8 @@
 #include "pch.h"
-#include "VulkanTexture.h"
+#include "VulkanImage.h"
 #include "VulkanDevice.h"
 
-Dlight::VulkanTexture2D::VulkanTexture2D(VulkanDevice& _device, const FVulkanTextureDesc& desc)
+Dlight::VulkanImage::VulkanImage(VulkanDevice& _device, const FVulkanImageDesc& desc)
 	: device(_device)
 	, width(desc.width)
 	, height(desc.height)
@@ -11,7 +11,7 @@ Dlight::VulkanTexture2D::VulkanTexture2D(VulkanDevice& _device, const FVulkanTex
 	if (desc.width == 0 || desc.height == 0 ||
 		desc.format == VK_FORMAT_UNDEFINED || desc.usage == 0)
 	{
-		DL_LOG_ERROR("Invalid texture description");
+		DL_LOG_ERROR("Invalid image description");
 		std::abort();
 	}
 
@@ -36,7 +36,7 @@ Dlight::VulkanTexture2D::VulkanTexture2D(VulkanDevice& _device, const FVulkanTex
 	
 	if (VK_SUCCESS != vmaCreateImage(device.GetVmaAllocator(), &imageInfo, &allocInfo, &image, &allocation, nullptr))
 	{
-		DL_LOG_ERROR("Failed to create texture image");
+		DL_LOG_ERROR("Failed to create image");
 		std::abort();
 	}
 
@@ -58,12 +58,12 @@ Dlight::VulkanTexture2D::VulkanTexture2D(VulkanDevice& _device, const FVulkanTex
 		image = VK_NULL_HANDLE;
 		allocation = VK_NULL_HANDLE;
 
-		DL_LOG_ERROR("Failed to create texture image view");
+		DL_LOG_ERROR("Failed to create image view");
 		std::abort();
 	}
 }
 
-Dlight::VulkanTexture2D::~VulkanTexture2D()
+Dlight::VulkanImage::~VulkanImage()
 {
 	if (VK_NULL_HANDLE != imageView)
 	{

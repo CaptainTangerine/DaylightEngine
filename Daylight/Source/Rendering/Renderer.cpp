@@ -8,7 +8,7 @@
 #include "Graphics/Vulkan/VulkanSwapchain.h"
 #include "Graphics/Vulkan/VulkanPipeline.h"
 #include "Graphics/Vulkan/VulkanBuffer.h"
-#include "Graphics/Vulkan/VulkanTexture.h"
+#include "Graphics/Vulkan/VulkanImage.h"
 #include "Graphics/Vulkan/VulkanSampler.h"
 #include "ShaderConventions.h"
 #include "Utils/Image.h"
@@ -30,7 +30,7 @@ namespace Dlight
 	{
 		const std::filesystem::path imagePath = Paths::GetAssetPath(L"Image/Test.jpg");
 		Image image(imagePath.string());
-		testTexture = device.CreateTexture2D(image);
+		testImage = device.CreateImage2D(image);
 
 		// 선형 반복 샘플러 
 		VkSamplerCreateInfo samplerInfo = {};
@@ -69,7 +69,7 @@ namespace Dlight
 			static_cast<VkDeviceSize>(sizeof(triangleIndices[0]) * triangleIndices.size()));
 		
 		VkDescriptorImageInfo textureInfo = {};
-		textureInfo.imageView = testTexture->GetImageView();
+		textureInfo.imageView = testImage->GetImageView();
 		textureInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		
 		VkDescriptorImageInfo samplerDescriptorInfo = {};
@@ -103,7 +103,7 @@ namespace Dlight
 		DestroyPipelines();
 
 		linearRepeatSampler.reset();
-		testTexture.reset();
+		testImage.reset();
 	}
 
 	bool Renderer::CreateTrianglePipelines()

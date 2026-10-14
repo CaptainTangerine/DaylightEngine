@@ -12,7 +12,7 @@ namespace Dlight
 {
 	class VulkanSwapchain;
 	class VulkanBuffer;
-	class VulkanTexture2D;
+	class VulkanImage;
 	class Image;
 
 	struct FFrameResource
@@ -75,12 +75,12 @@ namespace Dlight
 	public:
 		std::unique_ptr<VulkanBuffer> CreateVertexBuffer(const void* data, VkDeviceSize byteSize);
 		std::unique_ptr<VulkanBuffer> CreateIndexBuffer(const void* data, VkDeviceSize byteSize);
-		std::unique_ptr<VulkanTexture2D> CreateTexture2D(Image& image);
+		std::unique_ptr<VulkanImage> CreateImage2D(Image& image);
 
 	private:
 		// CPU Data -> DeviceLocal
-		void UploadImage(VulkanTexture2D& destination, const void* data, VkDeviceSize byteSize, EResourceState beforeState, EResourceState finalState);
-		void TransitionImage(VkCommandBuffer commandBuufer, const VulkanTexture2D& texture, EResourceState _src, EResourceState _dst);
+		void UploadImage(VulkanImage& destination, const void* data, VkDeviceSize byteSize, EResourceState beforeState, EResourceState finalState);
+		void TransitionImage(VkCommandBuffer commandBuufer, const VulkanImage& image, EResourceState _src, EResourceState _dst);
 		void UploadBuffer(VulkanBuffer& destination, const void* data, VkDeviceSize size, VkDeviceSize destinationOffset, EResourceState beforeState, EResourceState finalState);
 		void TransitionBuffer(VkCommandBuffer commandBuffer, const VulkanBuffer& buffer, EResourceState _src, EResourceState _dst);
 

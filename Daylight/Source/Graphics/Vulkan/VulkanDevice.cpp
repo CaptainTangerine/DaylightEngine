@@ -9,7 +9,7 @@
 
 #include "VulkanSwapchain.h"
 #include "VulkanBuffer.h"
-#include "VulkanTexture.h"
+#include "VulkanImage.h"
 #include "Utils/Image.h"
 
 namespace Dlight
@@ -326,9 +326,9 @@ namespace Dlight
 		return buffer;
 	}
 
-	std::unique_ptr<VulkanTexture2D> VulkanDevice::CreateTexture2D(Image& image)
+	std::unique_ptr<VulkanImage> VulkanDevice::CreateImage2D(Image& image)
 	{
-		FVulkanTextureDesc desc = {};
+		FVulkanImageDesc desc = {};
 		desc.width = static_cast<uint32>(image.GetWidth());
 		desc.height = static_cast<uint32>(image.GetHeight());
 		desc.format = image.GetFormat();
@@ -337,14 +337,14 @@ namespace Dlight
 
 		
 
-		auto texture = std::make_unique<VulkanTexture2D>(*this, desc);
+		auto gpuImage = std::make_unique<VulkanImage>(*this, desc);
 
-		UploadImage(*texture, image.GetData(), image.GetSize(), EResourceState::Undefined, EResourceState::FragmentShaderRead);
+		UploadImage(*gpuImage, image.GetData(), image.GetSize(), EResourceState::Undefined, EResourceState::FragmentShaderRead);
 
-		return texture;
+		return gpuImage;
 	}
 
-	void VulkanDevice::UploadImage(VulkanTexture2D& destination, const void* data, VkDeviceSize byteSize, EResourceState beforeState, EResourceState finalState)
+	void VulkanDevice::UploadImage(VulkanImage& destination, const void* data, VkDeviceSize byteSize, EResourceState beforeState, EResourceState finalState)
 	{
 		if (nullptr == data || byteSize == 0)
 		{
@@ -467,7 +467,7 @@ namespace Dlight
 		vkDestroyCommandPool(device, commandPool, nullptr);
 	}
 
-	void VulkanDevice::TransitionImage(VkCommandBuffer commandBuufer, const VulkanTexture2D& texture, EResourceState _src, EResourceState _dst)
+	void VulkanDevice::TransitionImage(VkCommandBuffer commandBuufer, const VulkanImage& image, EResourceState _src, EResourceState _dst)
 	{
 		auto src = ConvertResourceState(_src);
 		auto dst = ConvertResourceState(_dst);
@@ -481,7 +481,7 @@ namespace Dlight
 		barrier.oldLayout = src.layout;
 		barrier.newLayout = dst.layout;
 
-		barrier.image = texture.GetImage();
+		barrier.image = image.GetImage();
 
 		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		barrier.subresourceRange.baseMipLevel = 0;

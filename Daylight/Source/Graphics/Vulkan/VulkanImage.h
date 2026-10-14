@@ -5,7 +5,7 @@
 
 namespace Dlight
 {
-	struct FVulkanTextureDesc
+	struct FVulkanImageDesc
 	{
 		uint32 width = 0;
 		uint32 height = 0;
@@ -19,11 +19,11 @@ namespace Dlight
 	class VulkanDevice;
 
 	// Device Local image 생성
-	class VulkanTexture2D
+	class VulkanImage
 	{
 	public:
-		VulkanTexture2D(VulkanDevice& _device, const FVulkanTextureDesc& desc);
-		~VulkanTexture2D();
+		VulkanImage(VulkanDevice& _device, const FVulkanImageDesc& desc);
+		~VulkanImage();
 
 	public:
 		VkImage GetImage() const { return image; };
