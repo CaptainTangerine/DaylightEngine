@@ -3,4 +3,5 @@
 
 namespace Dlight
 {
+	std::atomic_size_t ComponentTypeIDSystem::nextTypeID = 0;
 }

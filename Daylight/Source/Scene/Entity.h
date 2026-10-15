@@ -1,8 +1,8 @@
 #pragma once
+#include "Component/Component.h"
 
 namespace Dlight
 {
-	class Component;
 	class Entity
 	{
 	public:
@@ -17,12 +17,21 @@ namespace Dlight
 		template<typename T, typename... Args>
 		T* AddComponent(Args&&... args)
 		{
-			static_assert(std::is_base_of<Component, T>);
+			static_assert(std::is_base_of_v<Component, T>);
+
+			uint64 typeID = ComponentTypeIDSystem::GetTypeID<T>();
+			auto iter = componentMap.find(typeID);
+			if (iter != componentMap.end())
+			{
+				return static_cast<T*>(iter->second);
+			}
+
 			auto component = std::make_unique<T>(std::forward<Args>(args)...);
 			T* componentPtr = component.get();
 			componentPtr->SetOwner(this);
-
-			components.push_back(std::move(componentPtr));
+	
+			components.push_back(std::move(component));
+			componentMap[typeID] = componentPtr;
 			
 			return componentPtr;
 		}
@@ -30,26 +39,37 @@ namespace Dlight
 		template<typename T>
 		T* GetComponent()
 		{
-			for (auto& component : components)
+			uint64 typeID = Component::GetTypeID<T>();
+
+			auto iter = componentMap.find(typeID);
+			if (iter != componentMap.end())
 			{
-				if (T* result = dynamic_cast<T*>(component))
-				{
-					return result;
-				}
+				return static_cast<T*>(iter->second);
 			}
+
+			return nullptr;
 		}
 
 		template<typename T>
 		bool RemoveComponent()
 		{
-			for (auto iter = components.begin(); iter != components.end(); ++iter)
+			uint64 typeID = Component::GetTypeID<T>();
+			auto iter = componentMap.find(typeID);
+			if (iter != componentMap.end())
 			{
-				if (dynamic_cast<T*>(iter->get()))
+				Component* componentPtr = iter->second;
+				componentMap.erase(iter);
+
+				for (auto compIter = components.begin(); compIter != components.end(); ++compIter)
 				{
-					components.erase(iter);
-					return true;
+					if (compIter->get() == componentPtr)
+					{
+						components.erase(compIter);
+						return true;
+					}
 				}
 			}
+
 			return false;
 		}
 	public:
@@ -61,5 +81,6 @@ namespace Dlight
 		std::string name;
 		bool isActive = { true };
 		std::vector<std::unique_ptr<Component>> components;
+		std::unordered_map<uint64, Component*> componentMap;
 	};
 }

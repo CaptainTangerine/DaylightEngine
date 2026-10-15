@@ -6,7 +6,7 @@
 ## 다음 학습일의 단 하나의 핵심 과제 — 2026-10-19 (월)
 
 **TinyGLTF v3로 Lumine 모델을 읽고 mesh / primitive / POSITION accessor 메타데이터를 검증한다.**
-예상 2시간. 완료 증거가 없는 기존 과제를 10/19로 이동한다. 10/15 오전 검토이므로 오늘 학습의 실패/지연을 단정하지 않고 attempts=0을 유지한다. GPU 업로드 과제는 추가하지 않는다.
+예상 2시간. 10/15 저녁 재검토에서도 glTF 로더의 완료 증거가 없어 10/19의 기존 과제를 유지한다. 컴포넌트 구조 작업은 확인했으며 glTF 실패/지연으로 환산하지 않고 attempts=0을 유지한다. GPU 업로드 과제는 추가하지 않는다.
 
 - 목표: 준비된 `Daylight/Asset/Lumine/lumine/scene.gltf`를 실제 프로젝트의 TinyGLTF v3 C API로 읽고 연결 정보를 로그로 확인한다.
 - 첫 20분:
@@ -28,8 +28,8 @@
 
 ## 코드와 Git에서 확인한 현재 상태
 
-기준 HEAD: `4238937` (2026-10-14 VulkanTexture → VulkanImage 명칭 및 Image 초기화/오류 처리 정리).
-이전 기준 `b7c4d83` 이후 diff를 읽었다. staged/unstaged diff와 미추적 파일은 없으며 학습 파일은 `d0f8fdc`에 커밋되어 있다. Renderer는 Image/Test.jpg와 하드코딩 사각형을 사용한다. Daylight/Source 및 Shaders에서 glTF 파싱 호출은 찾지 못했다. 사용자 소스/빌드 설정을 보존한다.
+기준 HEAD: `ce490eb` (2026-10-15 14:42, 컴포넌트 기반 아키텍처 설계).
+오전 기준 `4238937` 이후 커밋과 staged/unstaged diff, 미추적 파일을 읽었다. staged 변경은 없고 Scene/Component 및 Entity의 7개 파일이 미커밋 상태이며 Resources/ResourceManager.h·cpp가 미추적 상태다. Entity 타입별 컴포넌트 조회, Component 생명주기, Camera/MeshComponent 및 ResourceManager 골격을 확인했다. Renderer는 여전히 Image/Test.jpg와 하드코딩 사각형을 사용하며 애플리케이션 glTF 파싱 호출/성공 로그는 없다. 사용자 변경은 보존한다.
 
 | 기능 | 구현 상태 | 검증 상태와 근거 |
 |---|---|---|
@@ -39,13 +39,14 @@
 | Dynamic Rendering, 깊이 attachment | 코드 존재 | `Renderer::Render`의 `vkCmdBeginRendering`/`vkCmdEndRendering`. 3D 깊이 테스트 결과 미검증 |
 | Synchronization2, timeline/바이너리 semaphore | 코드 존재 | `BeginFrame`/`EndFrame`, `vkCmdPipelineBarrier2`, `vkQueueSubmit2`, timeline wait 확인. 동기화 validation 결과 미확보 |
 | Bindless 기초 | 일부 구현 | 64개 sampled-image 배열, PARTIALLY_BOUND/UPDATE_AFTER_BIND, sampler 별도 세트. 셰이더는 `textures[0]`만 사용. 동적/비균일 인덱싱 미구현·미검증 |
+| Entity/Component/Transform/Camera/ResourceManager | 구조·일부 구현 | Mesh Render는 주석만 있고 Renderer 연결/현재 전체 빌드·행렬 검증 증거 없음 |
 | TinyGLTF v3 라이브러리/모델 준비 | 설정·파일 확인 완료 | C11 정적 라이브러리 연결, FS 매크로, 로컬 v3 헤더 존재. 애플리케이션의 parse 호출은 없음 |
 | glTF CPU 파싱/데이터 추출 | 미구현 | Source/Shaders 검색과 Renderer 초기화 경로에서 로더 부재 확인 |
 | 정적 glTF 모델 렌더링·카메라·glTF 재질 | 미구현 | 현재 POSITION은 Vector2, 모델 행렬/카메라/모델 재질 경로 없음 |
 | PBR / Deferred / Toon | 미구현 | 후속 로드맵 단계 |
 
 **검증의 한계 (10/15 재조회):** Debug exe는 10/14 14:06, 별도 vulkan-image-verify/Daylight.exe는 10/14 14:32 산출물이다. 파일 존재/시각으로 빌드 과정이나 화면/validation 성공을 단정하지 않는다. Debug log.txt는 창/GPU 선택만 기록한다. 10/12 pipeline-check.stdout.log는 창/GPU 2줄, stderr는 비어 있다. image-fallback-check/log.txt의 fallback 경고는 별도 확인용 산출물이며 현재 Image.cpp의 abort 경로와 구분한다.
-CTest LastTest.log는 10/15 10:18 시작/종료만 있으며 테스트 통과 증거가 아니다. Daylight/log.txt는 기존 10/7 로그이며 glTF 파싱 성공/메타데이터 출력 증거는 찾지 못했다.
+CTest LastTest.log는 저녁 재조회에서 10/15 18:21 시작/종료만 있으며 테스트 통과 증거가 아니다. Daylight/log.txt는 기존 10/7 로그이며 glTF 파싱 성공/메타데이터 출력 증거는 찾지 못했다.
 이번 자동화는 빌드/렌더러 실행/validation 테스트를 수행하지 않았다. Git diff 부재로 학습 부재/이해도를 판단하지 않는다.
 
 ### 다음 단계의 선행 조건
@@ -160,6 +161,17 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 |---|---|---|---|
 | 2026-10-14 | 소스/Git/미커밋 분석, 모델 JSON 비교값, Calendar 조회 및 개인 일정 날짜 정정 | TinyGLTF 애플리케이션 로더 없음. 렌더링 재검증/이해도 확인 없음 | v3 파싱 API 확인 후 실제 메타데이터 로그 검증 |
 | 2026-10-15 | HEAD 4238937 및 diff, 소스/기존 로그, 네 캘린더 조회와 lock 후 재조회 | glTF 호출/성공 로그 없음. pending/attempts=0 유지. 새 빌드/실행 안 함 | 10/19 동일 메타데이터 과제 하나 유지 |
+| 2026-10-15 저녁 | HEAD ce490eb·사용자 미커밋 Scene/Resources·기존 빌드/검사 로그·Calendar 재조회 | glTF 완료 증거 없음; 현재 전체 빌드/행렬 검증 미확보. 두 이벤트 update/read_event/receipt/중복 검증 성공 | 10/19 동일 핵심 과제; Blender 유지·선형대수 미해당 |
+
+### 10/15 저녁 재검토 — 실행 증거 및 일정 처리
+
+- 실제 시작은 약 18:56 KST이며 19:00 자동 트리거 검증으로 해석하지 않는다. 오전 실행 이후의 새 커밋/미커밋 파일을 재평가했다.
+- 기존 `out/build/precommit-review-20261015/build.log`에는 /ZI와 /Z7 PCH 옵션 불일치(C2855/C1903)가 있다. component-probe.log에는 AddComponent 컴파일 오류가 있으나 현재 Entity.h는 해당 과거 코드와 달라 현재 실패로 단정하지 않는다. component-unit/resource-manager obj 존재도 전체 빌드/실행 성공의 근거가 아니다. 이번 자동화는 빌드·렌더러·테스트를 실행하지 않았다.
+- 코드 읽기에서 TransformComponent의 translation 행렬이 최종 합성에 사용되지 않고 CameraComponent의 perspective 계산 반환값이 ProjectionMatrix에 저장되지 않는 점을 확인했다. 향후 카메라 단계에서 재검증할 메모이며 별도 활성 과제를 추가하지 않는다.
+- glTF 과제는 pending, attempts=0, completion_evidence=null, 10/19 유지. 남은 시간/실패가 확인되면 기존 1시간 첫 primitive 범위로 줄인다.
+- Calendar 네 개를 10/15~19 전체 날짜로 모든 페이지 조회하고 독점 lock 후 재조회했다. 10/16 외출·10/17 결혼식 및 10/18 주말은 생략한다. 10/19 Vulkan 10:00~12:00·Blender 20:00~20:30 기존 소유 ID의 내용만 갱신 대상으로 결정했다.
+- 날짜별 planner 초안에서 10/16·18 선형대수/Blender 및 Vulkan은 defer, 10/17 Vulkan/Blender도 defer다. 10/19는 Blender만 대상이며 선형대수는 격일 미해당이다. 빠진 분량을 누적하지 않으며 다음 격일 대상 10/20은 다음 검토에서 실제 일정을 확인한다.
+- 18:59 KST 실제 갱신 완료: Vulkan ID `1ufg1ljbcle9d22pdoq77tmqf0`, Blender ID `51l8q4ffm1014h1smi1jq723e8`. 시간 필드 없이 기존 ID의 내용만 갱신했고 각각 read_event 및 planner receipt를 통과했다. 최종 네 캘린더 재검색에서 식별자별 1개, 10/15 기존 학습·10/16 외출·10/17 결혼식의 ID/시간 보존을 확인했다. 상세 결과: `study/automation/runtime/2026-10-15-evening-review-result.json`.
 
 ## 자동화가 읽는 현재 과제 상태
 
