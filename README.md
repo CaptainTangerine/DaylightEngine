@@ -33,6 +33,22 @@ DirectXMath와 SimpleMath는 `External` 폴더의 파일을 사용합니다.
 
 빌드 설정은 `CMakeLists.txt`에서, 구성별 설정과 출력 폴더는 `CMakePresets.json`에서 관리합니다.
 
+## C++ 클래스 생성
+
+저장소 루트의 터미널에서 클래스 경로를 입력합니다. 경로는 `Daylight/Source` 기준입니다.
+
+```powershell
+.\new-class Scene/Entity
+.\new-class Scene/Components/MeshComponent
+.\new-class Graphics/Vulkan/VulkanTexture
+```
+
+필요한 폴더와 `.h`, `.cpp`를 생성합니다. 헤더에는 기본 생성자·소멸자 선언을,
+구현 파일에는 `pch.h`와 해당 헤더 include 및 빈 생성자·소멸자를 작성합니다.
+헤더와 구현 파일 모두 `namespace Dlight` 안에 작성합니다. 파일이 하나라도 이미 존재하면 덮어쓰지 않고 중단합니다.
+CMake가 `Daylight/Source` 아래의 `.cpp`를 자동 수집하므로 소스 목록을 직접 수정할 필요는 없습니다.
+인수 없이 `.\new-class`를 실행하면 사용 예시를 표시합니다.
+
 ## 사용 라이브러리
 
 | 라이브러리 | 용도 |

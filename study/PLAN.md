@@ -1,12 +1,12 @@
 # Vulkan Renderer · 학습 계획
 
-> 갱신: 2026-10-14 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
+> 갱신: 2026-10-15 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
 > 코드 존재, 빌드 성공, 실행/화면 검증, 이해도 확인을 서로 구분한다.
 
-## 오늘의 단 하나의 핵심 과제 — 2026-10-14
+## 다음 학습일의 단 하나의 핵심 과제 — 2026-10-19 (월)
 
 **TinyGLTF v3로 Lumine 모델을 읽고 mesh / primitive / POSITION accessor 메타데이터를 검증한다.**
-예상 2시간. 현재 미완료 후보를 코드에 맞춰 구체화했으며 GPU 업로드 과제는 추가하지 않는다.
+예상 2시간. 완료 증거가 없는 기존 과제를 10/19로 이동한다. 10/15 오전 검토이므로 오늘 학습의 실패/지연을 단정하지 않고 attempts=0을 유지한다. GPU 업로드 과제는 추가하지 않는다.
 
 - 목표: 준비된 `Daylight/Asset/Lumine/lumine/scene.gltf`를 실제 프로젝트의 TinyGLTF v3 C API로 읽고 연결 정보를 로그로 확인한다.
 - 첫 20분:
@@ -28,9 +28,8 @@
 
 ## 코드와 Git에서 확인한 현재 상태
 
-기준 HEAD: `b7c4d83` (2026-10-12 Bindless/이미지 출력 커밋).
-초기 미커밋: `VulkanSwapchain.h`의 빈 줄 삭제 1개. 마지막 재조회에서는 이 차이가 사라졌다. Codex는 이 헤더를 수정하지 않았으며 현재 파일을 보존했다. AGENTS.md, 자동화 프롬프트, study/는 미추적 상태다.
-렌더러 소스/빌드 설정과 사용자 미커밋 수정은 보존한다.
+기준 HEAD: `4238937` (2026-10-14 VulkanTexture → VulkanImage 명칭 및 Image 초기화/오류 처리 정리).
+이전 기준 `b7c4d83` 이후 diff를 읽었다. staged/unstaged diff와 미추적 파일은 없으며 학습 파일은 `d0f8fdc`에 커밋되어 있다. Renderer는 Image/Test.jpg와 하드코딩 사각형을 사용한다. Daylight/Source 및 Shaders에서 glTF 파싱 호출은 찾지 못했다. 사용자 소스/빌드 설정을 보존한다.
 
 | 기능 | 구현 상태 | 검증 상태와 근거 |
 |---|---|---|
@@ -45,10 +44,9 @@
 | 정적 glTF 모델 렌더링·카메라·glTF 재질 | 미구현 | 현재 POSITION은 Vector2, 모델 행렬/카메라/모델 재질 경로 없음 |
 | PBR / Deferred / Toon | 미구현 | 후속 로드맵 단계 |
 
-**검증의 한계:** 기존 Debug exe는 10/12 산출물이다. `pipeline-check.stdout.log`는 창/GPU 정보 2줄, stderr는 비어 있다.
-`Daylight/log.txt`는 10/7 로그다. CTest 로그는 시작/종료만 있고 프로젝트 테스트 등록을 찾지 못했다.
-이번 검토에서 새 빌드/렌더러 실행/validation 테스트는 수행하지 않았다. 렌더링 완료나 validation 0건을 단정하지 않는다.
-Git diff가 없다는 사실은 학습 부재를 뜻하지 않으며 이해도는 사용자의 답변/설명으로 확인한다.
+**검증의 한계 (10/15 재조회):** Debug exe는 10/14 14:06, 별도 vulkan-image-verify/Daylight.exe는 10/14 14:32 산출물이다. 파일 존재/시각으로 빌드 과정이나 화면/validation 성공을 단정하지 않는다. Debug log.txt는 창/GPU 선택만 기록한다. 10/12 pipeline-check.stdout.log는 창/GPU 2줄, stderr는 비어 있다. image-fallback-check/log.txt의 fallback 경고는 별도 확인용 산출물이며 현재 Image.cpp의 abort 경로와 구분한다.
+CTest LastTest.log는 10/15 10:18 시작/종료만 있으며 테스트 통과 증거가 아니다. Daylight/log.txt는 기존 10/7 로그이며 glTF 파싱 성공/메타데이터 출력 증거는 찾지 못했다.
+이번 자동화는 빌드/렌더러 실행/validation 테스트를 수행하지 않았다. Git diff 부재로 학습 부재/이해도를 판단하지 않는다.
 
 ### 다음 단계의 선행 조건
 
@@ -69,16 +67,17 @@ Git diff가 없다는 사실은 학습 부재를 뜻하지 않으며 이해도�
 3 meshes, 3 primitives, 12 accessors, buffer 1개, bufferViews 3개, skins/animations 0개.
 이는 PowerShell JSON 조회 결과이며 TinyGLTF 실행 결과나 전체 glTF 유효성 검증 결과가 아니다.
 
-## 일정과 주간 목표 — 10/14~10/18
+## 일정과 주간 목표 — 10/14~10/19
 
 Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 캘린더를 실제 조회했다.
-사용자 정정에 따라 기존 이벤트를 **10/16(금) 외출, 10/17(토) 결혼식** 종일 일정으로 수정하고 다시 조회했다.
+10/14에 사용자 정정한 **10/16(금) 외출, 10/17(토) 결혼식** 종일 일정을 10/15에도 재조회했다. 이번 실행은 개인 일정을 변경하지 않는다.
 10/18(일)은 평일 학습 패턴 밖의 휴식일이다.
 
-- 이번 주 핵심 목표: 10/14~15에 모델 파싱 메타데이터를 실제 로더 로그로 검증한다. CPU 전체 추출/모델 출력은 필수 주간 목표에서 제외한다.
+- 현재 핵심 목표: 모델 파싱 메타데이터를 실제 로더 로그로 검증한다. 완료 증거가 없어 10/19에도 이 과제 하나만 유지한다. CPU 전체 추출/모델 출력은 대기한다.
 - 10/15: 오늘 과제가 미완료이면 같은 과제를 축소/재배치한다. 완료 증거가 있으면 첫 primitive의 CPU 추출 하나만 선정한다.
 - 10/16~18: 개발 과제 없음. 미완료 작업은 10/19에 재평가하며 3일 분량을 누적하지 않는다.
-- 10/18 19:00: 10/19 계획을 준비한다. 10/15 19:00 검토도 다음 가능한 학습일인 10/19를 대상으로 한다.
+- 10/15 오전 실제 실행: 다음 학습일 10/19 전체 날짜를 네 캘린더에서 조회했다. 예약 시각 19:00에 시작했다고 주장하지 않는다. 이후 리뷰는 최신 진도/일정을 재평가한다.
+- 10/19: Vulkan 10:00~12:00, Blender 20:00~20:30 실제 등록 및 read_event/receipt/중복 재조회 검증 완료. 선형대수는 anchor 10/14와 5일 차이여서 대상 아님. 10/16·18 격일 분량은 외출/주말로 생략하고 누적하지 않는다. 다음 격일 대상 10/20은 그날 Calendar 확인 후 배치한다.
 - 개발 기본 시간: 평일 10:00~20:00 중 1~3시간 블록 하나. 충돌 시 빈 시간으로 옮기거나 작은 검증 단위로 줄인다.
 - 선형대수: 사용자 요청으로 10/14를 새 격일 루틴의 시작점으로 설정했다. 현재 강의/문제 진도 확인과 최근 개념 복습을 30분으로 등록한다. 과거 학습일이나 수강 진도를 추측하지 않는다. 외출/주말로 빠진 분량은 누적하지 않는다.
 - Blender: 가용 저녁 20:00~22:00 중 30분. 현재 챌린지 일차는 먼저 확인하며 10/14~15에는 20:00~20:30으로 등록했다.
@@ -97,7 +96,7 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 | 순서 | 마일스톤 | 검증 가능한 완료 기준 | 상태 |
 |---|---|---|---|
 | 0 | 기존 이미지 출력 기준선 | 새 Debug 실행 화면, 정상 종료, resize/minimize, validation 결과 기록 | 코드 있음·재검증 필요 |
-| 1 | glTF 파싱 | 실제 TinyGLTF 로그가 위 메타데이터와 일치 | 오늘 활성 과제 |
+| 1 | glTF 파싱 | 실제 TinyGLTF 로그가 위 메타데이터와 일치 | 현재 활성 과제 |
 | 2 | 첫 primitive CPU 추출 | 위치/인덱스 개수·범위·stride·샘플 값 확인 | 대기 |
 | 3 | 정적 glTF 출력 | 3D 위치/적절한 인덱스 업로드, 고정 MVP·깊이로 단색 모델 출력 | 대기 |
 | 4 | 카메라/노드/전체 모델 | 좌표계와 노드 변환 검증, orbit 및 전체 primitives 출력 | 대기 |
@@ -120,7 +119,7 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 - 실제 학습 이벤트 5개를 생성하고 read_event 및 receipt로 확인했다. 같은 작업을 다시 실행해 동일 ID 5개를 갱신한 뒤 각각 1개만 존재함을 재조회했다.
 - Codex 예약: **실제 갱신 및 조회 확인**, ID `vulkan-daily-study-review`, ACTIVE. **매일 19:00 Asia/Seoul**, 메인 로컬 `C:/DaylightEngine`, worktree 사용 안 함. 모델/추론은 기존 로컬 설정의 gpt-6.1-sol/high. 저녁 리뷰가 다음 학습일의 Calendar 등록·수정·재조회까지 수행한다. 아직 예약 시각에 자동으로 시작하는 것은 검증 전이다.
 - 자동 실행 쓰기 범위: `study/PLAN.md`, `study/automation/runtime/`의 초안/결과/오류/이벤트 ID 기록만. 렌더러 소스, 빌드 설정, 자동화 코드/설정, AGENTS.md/프롬프트는 자동 변경 금지.
-- PC가 켜져 있고 앱이 실행 중이어야 로컬 예약이 작동한다. 컴퓨터 종료/절전 시 10시 계획 준비는 보장되지 않으므로 복귀 후 수동 Run now로 재검토한다.
+- PC가 켜져 있고 앱이 실행 중이어야 로컬 예약이 작동한다. 컴퓨터 종료/절전 시 예약 실행은 보장되지 않으므로 복귀 후 수동 Run now로 재검토한다.
 - 인터넷/Calendar 접근 실패 시 PLAN에 제약을 기록하고 10~20시 오프라인 초안만 준비한다. 실패한 등록을 성공으로 보고하지 않는다.
 
 ### 연동 검증 결과 — 2026-10-14
@@ -132,7 +131,7 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 - 라이브 재실행 중복 검증: **성공**. 승인된 실제 학습 이벤트를 같은 ID로 갱신했고, 최종 검색에서 각 고유 식별자에 1개만 존재한다. 기존 10/16 외출·10/17 결혼식의 ID/시간도 보존 확인했다.
 - 최초 수동 OAuth 인증: 기존 Codex 연결이 작동하므로 없음. Calendar 쓰기 전환에 필요한 추가 승인은 남아 있지 않다.
 
-### 실제 등록된 오늘/내일 일정 (Asia/Seoul)
+### 이전 실행에서 실제 등록한 일정 — 10/14~15 (Asia/Seoul)
 
 | 날짜 | 시간 | 등록 내용 |
 |---|---|---|
@@ -142,13 +141,25 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 | 10/15 | 10:00~12:00 | [Vulkan] glTF 모델 읽기 · 정보 출력 |
 | 10/15 | 20:00~20:30 | [Blender] 30일 챌린지 · 현재 단계 연습 |
 
-오늘의 완료 증거가 아직 없으므로 내일은 같은 미완료 핵심 과제를 유지했다. 오늘 19시 검토에서 실제 완료/실패 기록을 보고 내일의 내용과 자료를 현실적으로 갱신한다.
+10/14 등록 당시 완료 증거가 없어 10/15 같은 과제를 유지했다. 10/15 오전 검토는 이 기존 이벤트의 시간/내용을 보존하고 다음 평일 10/19를 준비했다.
+
+### 이번 실행의 실제 Calendar 검증 — 2026-10-15
+
+- 다음 학습일 **2026-10-19 (월), Asia/Seoul**. 네 캘린더의 전체 날짜/모든 페이지를 읽고 lock 획득 후 재조회했다.
+- **Vulkan 10:00~12:00**: [glTF 모델 읽기 · 메타데이터 검증](https://www.google.com/calendar/event?eid=MXVmZzFsamJjbGU5ZDIycGRvcTc3dG1xZjAgd25zcWhkNTU1NTVAbQ). ID `1ufg1ljbcle9d22pdoq77tmqf0`.
+- **Blender 20:00~20:30**: [현재 단계 30분 연습](https://www.google.com/calendar/event?eid=NTFsOHE0ZmZtMTAxNGgxc21pMWpxNzIzZTggd25zcWhkNTU1NTVAbQ). ID `51l8q4ffm1014h1smi1jq723e8`.
+- 생성 뒤 read_event에서 confirmed/ID/제목/시간/고유 marker를 확인하고 두 receipt가 planner 검증을 통과해 registry에 저장되었다. 최종 네 캘린더 검색 완료, 새 marker별 정확히 1개이며 충돌 없음. 초안 파일의 update는 다음 실행용 중복 방지 결과이지 추가 수정 호출을 뜻하지 않는다.
+- 기존 10/14~15 학습 이벤트 5개 및 10/16 외출·10/17 결혼식의 ID/시간 보존. 개인 이벤트 변경/삭제 없음.
+- planner 날짜별 초안: 10/16 외출, 10/17~18 주말은 Vulkan/해당 routine 모두 defer. 10/19 Blender 처리 완료. 선형대수는 격일 비대상으로 초안이 없으며 미등록. 빠진 분량은 누적하지 않는다.
+- TinyGLTF 공식 Quick start와 Khronos Tutorial 5를 웹에서 재확인하고 설치된 v3 헤더와 대조했다. 모델 JSON 비교값도 재조회했다. JSON 확인은 로더 실행 완료가 아니며 current_task는 pending, attempts=0, completion_evidence=null이다.
+- 상세 결과: `study/automation/runtime/2026-10-15-review-result.json`, 날짜별 receipt와 registry. 빌드/렌더러 실행/자동화 코드·설정 변경은 수행하지 않았다.
 
 ## 학습 기록
 
 | 날짜 | 검증된 사실 | 미완료 / 제약 | 다음 학습일 첫 행동 |
 |---|---|---|---|
 | 2026-10-14 | 소스/Git/미커밋 분석, 모델 JSON 비교값, Calendar 조회 및 개인 일정 날짜 정정 | TinyGLTF 애플리케이션 로더 없음. 렌더링 재검증/이해도 확인 없음 | v3 파싱 API 확인 후 실제 메타데이터 로그 검증 |
+| 2026-10-15 | HEAD 4238937 및 diff, 소스/기존 로그, 네 캘린더 조회와 lock 후 재조회 | glTF 호출/성공 로그 없음. pending/attempts=0 유지. 새 빌드/실행 안 함 | 10/19 동일 메타데이터 과제 하나 유지 |
 
 ## 자동화가 읽는 현재 과제 상태
 
@@ -179,10 +190,6 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
       {
         "title": "TinyGLTF v3 Quick start — 파싱/오류/해제",
         "url": "https://github.com/syoyo/tinygltf#quick-start"
-      },
-      {
-        "title": "Vulkan Tutorial — Vertex input description (다음 단계 참고)",
-        "url": "https://docs.vulkan.org/tutorial/latest/04_Vertex_buffers/00_Vertex_input_description.html"
       },
       {
         "title": "Khronos glTF Tutorial 5 — Buffers, BufferViews, Accessors",
@@ -221,12 +228,13 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
       "minimum_minutes": 60,
       "short_session_goal": "이 과제 전체가 최소 검증 단위이다."
     },
-    "calendar_title": "glTF 모델 읽기 · 정보 출력",
+    "calendar_title": "glTF 모델 읽기 · 메타데이터 검증",
     "calendar_brief": {
-      "goal": "TinyGLTF v3로 Lumine 모델을 읽고 mesh/primitive/POSITION 정보를 출력하기.",
-      "first_step": "v3 파싱·오류 처리 API 확인 → POSITION accessor 연결 살펴보기.",
-      "done": "TG3_OK, mesh=3·primitive=3·accessor=12 및 POSITION 타입/개수 확인 후 실행 로그 남기기."
-    }
+      "goal": "TinyGLTF v3로 Lumine 모델의 mesh/primitive/POSITION 정보를 실제 로더로 확인한다.",
+      "first_step": "0~10분: 로컬 v3 파싱·오류·해제 API 확인. 10~20분: mesh → primitive → POSITION 예상값 정리.",
+      "done": "TG3_OK, mesh=3·primitive=3·accessor=12, POSITION 0/4/8의 count=28102/2919/1589·VEC3/FLOAT 및 indices UNSIGNED_INT를 출력하고 실행 명령·로그 기록."
+    },
+    "planned_date": "2026-10-19"
   }
 }
 ```
@@ -244,21 +252,19 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 <!-- calendar-draft:start -->
 ## Calendar 등록 초안
 
-- 대상 학습일: 2026-10-14
+- 대상 학습일: 2026-10-19
 - 모드: ready_for_connector · 동작: update
-- 시간: 2026-10-14T11:30:00+09:00 ~ 2026-10-14T13:30:00+09:00
+- 시간: 2026-10-19T10:00:00+09:00 ~ 2026-10-19T12:00:00+09:00
 
-오늘의 목표: TinyGLTF v3로 Lumine 모델을 읽고 mesh/primitive/POSITION 정보를 출력하기.
+오늘의 목표: TinyGLTF v3로 Lumine 모델의 mesh/primitive/POSITION 정보를 실제 로더로 확인한다.
 
-첫 20분 행동: v3 파싱·오류 처리 API 확인 → POSITION accessor 연결 살펴보기.
+첫 20분 행동: 0~10분: 로컬 v3 파싱·오류·해제 API 확인. 10~20분: mesh → primitive → POSITION 예상값 정리.
 
-완료 기준: TG3_OK, mesh=3·primitive=3·accessor=12 및 POSITION 타입/개수 확인 후 실행 로그 남기기.
+완료 기준: TG3_OK, mesh=3·primitive=3·accessor=12, POSITION 0/4/8의 count=28102/2919/1589·VEC3/FLOAT 및 indices UNSIGNED_INT를 출력하고 실행 명령·로그 기록.
 
 학습 자료
 TinyGLTF v3 Quick start — 파싱/오류/해제
 https://github.com/syoyo/tinygltf#quick-start
-Vulkan Tutorial — Vertex input description (다음 단계 참고)
-https://docs.vulkan.org/tutorial/latest/04_Vertex_buffers/00_Vertex_input_description.html
 Khronos glTF Tutorial 5 — Buffers, BufferViews, Accessors
 https://github.com/KhronosGroup/glTF-Tutorials/blob/main/gltfTutorial/gltfTutorial_005_BuffersBufferViewsAccessors.md
 
@@ -268,7 +274,7 @@ BufferView와 Accessor는 각각 무엇을 설명하며 POSITION accessor 번호
 다음 단계
 실제 파싱 완료를 검증한 뒤 첫 primitive의 CPU 위치/인덱스 데이터를 추출한다.
 
-[DaylightEngine-study:v1:2026-10-14:vulkan]
+[DaylightEngine-study:v1:2026-10-19:vulkan]
 
 --- 자동 계획 끝 ---
 
