@@ -7,9 +7,9 @@ namespace Dlight
 	class VulkanDevice;
 	class VulkanSwapchain;
 	class VulkanPipeline;
-	class VulkanBuffer;
-	class VulkanImage;
-	class VulkanSampler;
+	class MeshResource;
+	class TextureResource;
+	class ShaderResource;
 
 	class Renderer
 	{
@@ -37,6 +37,12 @@ namespace Dlight
 		// Shader Compilier
 		ShaderCompiler shaderCompiler;
 
+		// Shader Resource
+		std::unique_ptr<ShaderResource> triangleVertexShader = { nullptr };
+		std::unique_ptr<ShaderResource> triangleFragmentShader = { nullptr };
+		std::unique_ptr<ShaderResource> imageVertexShader = { nullptr };
+		std::unique_ptr<ShaderResource> imageFragmentShader = { nullptr };
+
 		// Pipeline
 		std::unique_ptr<VulkanPipeline> trianglePipeline = { nullptr };
 		std::unique_ptr<VulkanPipeline> imageTestPipeline = { nullptr };
@@ -48,13 +54,12 @@ namespace Dlight
 			{{-0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
 			{{0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}}
 		};
-		const std::vector<uint16> triangleIndices =
+		const std::vector<uint32> triangleIndices =
 		{
 			0, 1, 2
 		};
 
-		std::unique_ptr<VulkanBuffer> triangleVertexBuffer = { nullptr };
-		std::unique_ptr<VulkanBuffer> triangleIndexBuffer = { nullptr };
+		std::unique_ptr<MeshResource> triangleMesh = { nullptr };
 
 		// 이미지를 매핑할 사각형 정점과 인덱스
 		const std::vector<VertexFormat::FTexturedVertex> imageVertices =
@@ -64,18 +69,16 @@ namespace Dlight
 			{{0.5f, -0.5f}, {1.f, 1.f}},
 			{{0.5f, 0.5f}, {1.f, 0.f}}
 		};
-		const std::vector<uint16> imageIndices =
+		const std::vector<uint32> imageIndices =
 		{
 			0, 1, 2,
 			0, 2, 3
 		};
 
-		std::unique_ptr<VulkanBuffer> imageVertexBuffer = { nullptr };
-		std::unique_ptr<VulkanBuffer> imageIndexBuffer = { nullptr };
+		std::unique_ptr<MeshResource> imageMesh = { nullptr };
 
-		// 이미지와 공용 샘플러
-		std::unique_ptr<VulkanImage> testImage = { nullptr };
-		std::unique_ptr<VulkanSampler> linearRepeatSampler = { nullptr };
+		// 테스트 텍스처
+		std::unique_ptr<TextureResource> testTexture = { nullptr };
 
 	};
 }

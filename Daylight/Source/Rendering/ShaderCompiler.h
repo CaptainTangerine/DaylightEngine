@@ -1,7 +1,6 @@
 #pragma once
 
 #include <dxc/dxcapi.h>
-#include <string>
 
 namespace Dlight
 {

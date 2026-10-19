@@ -1,7 +1,6 @@
 #pragma once
 #include "vulkan/vulkan.h"
 #include "Rendering/ShaderConventions.h"
-#include <vector>
 
 namespace Dlight
 {

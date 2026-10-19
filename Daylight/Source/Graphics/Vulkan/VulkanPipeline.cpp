@@ -1,8 +1,6 @@
 #include "pch.h"
 #include "VulkanPipeline.h"
 #include "Graphics/Vulkan/VulkanDevice.h"
-#include "Graphics/Vulkan/VulkanSwapchain.h"
-#include "Rendering/Renderer.h"
 
 Dlight::VulkanPipeline::VulkanPipeline(VulkanDevice& _device, const FGfxPipelineDesc& desc)
 	: device(_device)

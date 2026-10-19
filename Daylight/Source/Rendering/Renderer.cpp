@@ -2,7 +2,6 @@
 #include "Renderer.h"
 
 #include "Core/Paths.h"
-#include "Graphics/VertexFormat.h"
 
 #include "Graphics/Vulkan/VulkanDevice.h"
 #include "Graphics/Vulkan/VulkanSwapchain.h"
@@ -11,7 +10,9 @@
 #include "Graphics/Vulkan/VulkanImage.h"
 #include "Graphics/Vulkan/VulkanSampler.h"
 #include "ShaderConventions.h"
-#include "Utils/Image.h"
+#include "Resources/MeshResource.h"
+#include "Resources/TextureResource.h"
+#include "Resources/ShaderResource.h"
 
 namespace Dlight
 {
@@ -29,51 +30,64 @@ namespace Dlight
 	void Renderer::Initialize()
 	{
 		const std::filesystem::path imagePath = Paths::GetAssetPath(L"Image/Test.jpg");
-		Image image(imagePath.string());
-		testImage = device.CreateImage2D(image);
+		FTextureRaw textureData = { Image(imagePath.string()), {} };
+		testTexture = std::make_unique<TextureResource>("ImageTest", device, std::move(textureData));
+		if (!testTexture->Load())
+		{
+			DL_LOG_ERROR("Failed to load test texture");
+			std::abort();
+		}
 
-		// 선형 반복 샘플러 
-		VkSamplerCreateInfo samplerInfo = {};
-		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-		samplerInfo.magFilter = VK_FILTER_LINEAR;
-		samplerInfo.minFilter = VK_FILTER_LINEAR;
-		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-		samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-		samplerInfo.anisotropyEnable = VK_FALSE;
-		samplerInfo.maxAnisotropy = 1.0f;
-		samplerInfo.compareEnable = VK_FALSE;
-		samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-		samplerInfo.minLod = 0.0f;
-		samplerInfo.maxLod = VK_LOD_CLAMP_NONE;
-		samplerInfo.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK;
-		samplerInfo.unnormalizedCoordinates = VK_FALSE;
+		FMeshRaw imageMeshData = {};
+		imageMeshData.vertexData.resize(sizeof(imageVertices[0]) * imageVertices.size());
+		std::memcpy(imageMeshData.vertexData.data(), imageVertices.data(), imageMeshData.vertexData.size());
+		imageMeshData.indices = imageIndices;
+		imageMeshData.layout.stride = sizeof(VertexFormat::FTexturedVertex);
+		imageMeshData.layout.attributes.resize(2);
+		imageMeshData.layout.attributes[0].location = 0;
+		imageMeshData.layout.attributes[0].binding = 0;
+		imageMeshData.layout.attributes[0].format = VK_FORMAT_R32G32_SFLOAT;
+		imageMeshData.layout.attributes[0].offset = offsetof(VertexFormat::FTexturedVertex, position);
+		imageMeshData.layout.attributes[1].location = 1;
+		imageMeshData.layout.attributes[1].binding = 0;
+		imageMeshData.layout.attributes[1].format = VK_FORMAT_R32G32_SFLOAT;
+		imageMeshData.layout.attributes[1].offset = offsetof(VertexFormat::FTexturedVertex, texcoord);
 
-		linearRepeatSampler = std::make_unique<VulkanSampler>(device, samplerInfo);
+		imageMesh = std::make_unique<MeshResource>("ImageTest", device, std::move(imageMeshData));
+		if (!imageMesh->Load())
+		{
+			DL_LOG_ERROR("Failed to load image mesh");
+			std::abort();
+		}
 
-		imageVertexBuffer = device.CreateVertexBuffer(
-			imageVertices.data(),
-			static_cast<VkDeviceSize>(sizeof(imageVertices[0]) * imageVertices.size()));
+		FMeshRaw triangleMeshData = {};
+		triangleMeshData.vertexData.resize(sizeof(triangleVertices[0]) * triangleVertices.size());
+		std::memcpy(triangleMeshData.vertexData.data(), triangleVertices.data(), triangleMeshData.vertexData.size());
+		triangleMeshData.indices = triangleIndices;
+		triangleMeshData.layout.stride = sizeof(VertexFormat::FColoredVertex);
+		triangleMeshData.layout.attributes.resize(2);
+		triangleMeshData.layout.attributes[0].location = 0;
+		triangleMeshData.layout.attributes[0].binding = 0;
+		triangleMeshData.layout.attributes[0].format = VK_FORMAT_R32G32_SFLOAT;
+		triangleMeshData.layout.attributes[0].offset = offsetof(VertexFormat::FColoredVertex, position);
+		triangleMeshData.layout.attributes[1].location = 1;
+		triangleMeshData.layout.attributes[1].binding = 0;
+		triangleMeshData.layout.attributes[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+		triangleMeshData.layout.attributes[1].offset = offsetof(VertexFormat::FColoredVertex, color);
 
-		imageIndexBuffer = device.CreateIndexBuffer(
-			imageIndices.data(),
-			static_cast<VkDeviceSize>(sizeof(imageIndices[0]) * imageIndices.size()));
-
-		triangleVertexBuffer = device.CreateVertexBuffer(
-			triangleVertices.data(),
-			static_cast<VkDeviceSize>(sizeof(triangleVertices[0]) * triangleVertices.size()));
-
-		triangleIndexBuffer = device.CreateIndexBuffer(
-			triangleIndices.data(),
-			static_cast<VkDeviceSize>(sizeof(triangleIndices[0]) * triangleIndices.size()));
+		triangleMesh = std::make_unique<MeshResource>("Triangle", device, std::move(triangleMeshData));
+		if (!triangleMesh->Load())
+		{
+			DL_LOG_ERROR("Failed to load triangle mesh");
+			std::abort();
+		}
 		
 		VkDescriptorImageInfo textureInfo = {};
-		textureInfo.imageView = testImage->GetImageView();
+		textureInfo.imageView = testTexture->GetImage()->GetImageView();
 		textureInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		
 		VkDescriptorImageInfo samplerDescriptorInfo = {};
-		samplerDescriptorInfo.sampler = linearRepeatSampler->GetSampler();
+		samplerDescriptorInfo.sampler = testTexture->GetSampler()->GetSampler();
 
 		VkWriteDescriptorSet writes[2] = {};
 		writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -102,8 +116,12 @@ namespace Dlight
 	{
 		DestroyPipelines();
 
-		linearRepeatSampler.reset();
-		testImage.reset();
+		triangleVertexShader.reset();
+		triangleFragmentShader.reset();
+		imageVertexShader.reset();
+		imageFragmentShader.reset();
+
+		testTexture.reset();
 	}
 
 	bool Renderer::CreateTrianglePipelines()
@@ -111,72 +129,60 @@ namespace Dlight
 		// 셰이더 컴파일 -> 추후 shaderManager로 관리 
 		const std::filesystem::path shaderPath = Paths::GetShaderPath(L"Triangle.hlsl");
 
-		auto vertCode = shaderCompiler.Compile(
-			shaderPath.c_str(),
-			ShaderConventions::VertexEntry,
-			L"vs_6_0");
-
-		auto fragCode = shaderCompiler.Compile(
-			shaderPath.c_str(),
-			ShaderConventions::PixelEntry,
-			L"ps_6_0");
-
-		// 셰이더 모듈 만들기 
-		VkShaderModule vertModule = VK_NULL_HANDLE;
-		VkShaderModule fragModule = VK_NULL_HANDLE;
-
-		VkShaderModuleCreateInfo vertModuleInfo{};
-		vertModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		vertModuleInfo.codeSize = vertCode.size() * sizeof(uint32);
-		vertModuleInfo.pCode = vertCode.data();
-		if (VK_SUCCESS != vkCreateShaderModule(device.GetDevice(), &vertModuleInfo, nullptr, &vertModule))
+		if (!triangleVertexShader)
 		{
-			DL_LOG_ERROR("Failed to create vertex shader module");
-			std::abort();
+			FShaderRaw shaderRaw = {};
+			shaderRaw.spirv = shaderCompiler.Compile(
+				shaderPath.c_str(),
+				ShaderConventions::VertexEntry,
+				L"vs_6_0");
+			shaderRaw.stage = VK_SHADER_STAGE_VERTEX_BIT;
+			shaderRaw.entryPoint = ShaderConventions::VertexEntry;
+
+			triangleVertexShader = std::make_unique<ShaderResource>(
+				"Triangle.VS", device, std::move(shaderRaw));
 		}
 
-		VkShaderModuleCreateInfo fragModuleInfo{};
-		fragModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		fragModuleInfo.codeSize = fragCode.size() * sizeof(uint32);
-		fragModuleInfo.pCode = fragCode.data();
-		if (VK_SUCCESS != vkCreateShaderModule(device.GetDevice(), &fragModuleInfo, nullptr, &fragModule))
+		if (!triangleFragmentShader)
 		{
-			DL_LOG_ERROR("Failed to create fragment shader module");
+			FShaderRaw shaderRaw = {};
+			shaderRaw.spirv = shaderCompiler.Compile(
+				shaderPath.c_str(),
+				ShaderConventions::PixelEntry,
+				L"ps_6_0");
+			shaderRaw.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+			shaderRaw.entryPoint = ShaderConventions::PixelEntry;
+
+			triangleFragmentShader = std::make_unique<ShaderResource>(
+				"Triangle.PS", device, std::move(shaderRaw));
+		}
+
+		if (!triangleVertexShader->Load() || !triangleFragmentShader->Load())
+		{
+			DL_LOG_ERROR("Failed to load triangle shaders");
 			std::abort();
 		}
 
 		FGfxPipelineDesc desc{};
-		desc.vertexShader = vertModule;
-		desc.fragmentShader = fragModule;
-		desc.vertexEntryPoint = ShaderConventions::VertexEntry;
-		desc.fragmentEntryPoint = ShaderConventions::PixelEntry;
+		desc.vertexShader = triangleVertexShader->GetModule();
+		desc.fragmentShader = triangleFragmentShader->GetModule();
+		desc.vertexEntryPoint = triangleVertexShader->GetEntryPoint().c_str();
+		desc.fragmentEntryPoint = triangleFragmentShader->GetEntryPoint().c_str();
 
 
 		VkVertexInputBindingDescription vertexBinding{};
 		vertexBinding.binding = 0;
-		vertexBinding.stride = sizeof(VertexFormat::FColoredVertex);
+		vertexBinding.stride = triangleMesh->GetVertexLayout().stride;
 		vertexBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 		desc.vertexBindings.push_back(vertexBinding);
 
 		// dx11 InputLayout 같은 개념 
-		desc.vertexAttributes.resize(2);
-		desc.vertexAttributes[0].location = 0;
-		desc.vertexAttributes[0].binding = 0;
-		desc.vertexAttributes[0].format = VK_FORMAT_R32G32_SFLOAT;
-		desc.vertexAttributes[0].offset = offsetof(VertexFormat::FColoredVertex, position);
-
-		desc.vertexAttributes[1].location = 1;
-		desc.vertexAttributes[1].binding = 0;
-		desc.vertexAttributes[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		desc.vertexAttributes[1].offset = offsetof(VertexFormat::FColoredVertex, color);
+		desc.vertexAttributes = triangleMesh->GetVertexLayout().attributes;
 
 		desc.colorFormat = VulkanSwapchain::swapchainFormat;
 		desc.depthFormat = device.GetDepthStencilFormat();
 
 		trianglePipeline = std::make_unique<VulkanPipeline>(device, desc);
-
-		vkDestroyShaderModule(device.GetDevice(), vertModule, nullptr);
-		vkDestroyShaderModule(device.GetDevice(), fragModule, nullptr);
 
 		return true;
 	}
@@ -186,37 +192,37 @@ namespace Dlight
 		// 셰이더 컴파일 -> 추후 shaderManager로 관리 
 		const std::filesystem::path shaderPath = Paths::GetShaderPath(L"ImageTest.hlsl");
 
-		auto vertCode = shaderCompiler.Compile(
-			shaderPath.c_str(),
-			ShaderConventions::VertexEntry,
-			L"vs_6_0");
-
-		auto fragCode = shaderCompiler.Compile(
-			shaderPath.c_str(),
-			ShaderConventions::PixelEntry,
-			L"ps_6_0");
-
-		// 셰이더 모듈 만들기 
-		VkShaderModule vertModule = VK_NULL_HANDLE;
-		VkShaderModule fragModule = VK_NULL_HANDLE;
-
-		VkShaderModuleCreateInfo vertModuleInfo{};
-		vertModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		vertModuleInfo.codeSize = vertCode.size() * sizeof(uint32);
-		vertModuleInfo.pCode = vertCode.data();
-		if (VK_SUCCESS != vkCreateShaderModule(device.GetDevice(), &vertModuleInfo, nullptr, &vertModule))
+		if (!imageVertexShader)
 		{
-			DL_LOG_ERROR("Failed to create vertex shader module");
-			std::abort();
+			FShaderRaw shaderRaw = {};
+			shaderRaw.spirv = shaderCompiler.Compile(
+				shaderPath.c_str(),
+				ShaderConventions::VertexEntry,
+				L"vs_6_0");
+			shaderRaw.stage = VK_SHADER_STAGE_VERTEX_BIT;
+			shaderRaw.entryPoint = ShaderConventions::VertexEntry;
+
+			imageVertexShader = std::make_unique<ShaderResource>(
+				"ImageTest.VS", device, std::move(shaderRaw));
 		}
 
-		VkShaderModuleCreateInfo fragModuleInfo{};
-		fragModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-		fragModuleInfo.codeSize = fragCode.size() * sizeof(uint32);
-		fragModuleInfo.pCode = fragCode.data();
-		if (VK_SUCCESS != vkCreateShaderModule(device.GetDevice(), &fragModuleInfo, nullptr, &fragModule))
+		if (!imageFragmentShader)
 		{
-			DL_LOG_ERROR("Failed to create fragment shader module");
+			FShaderRaw shaderRaw = {};
+			shaderRaw.spirv = shaderCompiler.Compile(
+				shaderPath.c_str(),
+				ShaderConventions::PixelEntry,
+				L"ps_6_0");
+			shaderRaw.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+			shaderRaw.entryPoint = ShaderConventions::PixelEntry;
+
+			imageFragmentShader = std::make_unique<ShaderResource>(
+				"ImageTest.PS", device, std::move(shaderRaw));
+		}
+
+		if (!imageVertexShader->Load() || !imageFragmentShader->Load())
+		{
+			DL_LOG_ERROR("Failed to load image shaders");
 			std::abort();
 		}
 
@@ -227,36 +233,24 @@ namespace Dlight
 			device.GetSamplerLayout()
 		};
 
-		desc.vertexShader = vertModule;
-		desc.fragmentShader = fragModule;
-		desc.vertexEntryPoint = ShaderConventions::VertexEntry;
-		desc.fragmentEntryPoint = ShaderConventions::PixelEntry;
+		desc.vertexShader = imageVertexShader->GetModule();
+		desc.fragmentShader = imageFragmentShader->GetModule();
+		desc.vertexEntryPoint = imageVertexShader->GetEntryPoint().c_str();
+		desc.fragmentEntryPoint = imageFragmentShader->GetEntryPoint().c_str();
 
 		VkVertexInputBindingDescription vertexBinding{};
 		vertexBinding.binding = 0;
-		vertexBinding.stride = sizeof(VertexFormat::FTexturedVertex);
+		vertexBinding.stride = imageMesh->GetVertexLayout().stride;
 		vertexBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 		desc.vertexBindings.push_back(vertexBinding);
 
 		// dx11 InputLayout 같은 개념 
-		desc.vertexAttributes.resize(2);
-		desc.vertexAttributes[0].location = 0;
-		desc.vertexAttributes[0].binding = 0;
-		desc.vertexAttributes[0].format = VK_FORMAT_R32G32_SFLOAT;
-		desc.vertexAttributes[0].offset = offsetof(VertexFormat::FTexturedVertex, position);
-
-		desc.vertexAttributes[1].location = 1;
-		desc.vertexAttributes[1].binding = 0;
-		desc.vertexAttributes[1].format = VK_FORMAT_R32G32_SFLOAT;
-		desc.vertexAttributes[1].offset = offsetof(VertexFormat::FTexturedVertex, texcoord);
+		desc.vertexAttributes = imageMesh->GetVertexLayout().attributes;
 
 		desc.colorFormat = VulkanSwapchain::swapchainFormat;
 		desc.depthFormat = device.GetDepthStencilFormat();
 
 		imageTestPipeline = std::make_unique<VulkanPipeline>(device, desc);
-
-		vkDestroyShaderModule(device.GetDevice(), vertModule, nullptr);
-		vkDestroyShaderModule(device.GetDevice(), fragModule, nullptr);
 
 		return true;
 	}
@@ -343,12 +337,12 @@ namespace Dlight
 			vkCmdBindPipeline(frameCtx.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imageTestPipeline->GetPipeline());
 			
 
-			const VkBuffer vertexBuffer = imageVertexBuffer->GetBuffer();
+			const VkBuffer vertexBuffer = imageMesh->GetVertexBuffer()->GetBuffer();
 			const VkDeviceSize offset = 0;
 			
 			vkCmdBindVertexBuffers(frameCtx.commandBuffer, 0, 1, &vertexBuffer, &offset);
-			vkCmdBindIndexBuffer(frameCtx.commandBuffer, imageIndexBuffer->GetBuffer(), 0, VK_INDEX_TYPE_UINT16);
-			vkCmdDrawIndexed(frameCtx.commandBuffer, static_cast<uint32_t>(imageIndices.size()), 1, 0, 0, 0);
+			vkCmdBindIndexBuffer(frameCtx.commandBuffer, imageMesh->GetIndexBuffer()->GetBuffer(), 0, imageMesh->GetIndexType());
+			vkCmdDrawIndexed(frameCtx.commandBuffer, imageMesh->GetIndexCount(), 1, 0, 0, 0);
 
 
 		}

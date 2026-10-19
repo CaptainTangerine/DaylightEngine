@@ -10,7 +10,6 @@
 #include "VulkanSwapchain.h"
 #include "VulkanBuffer.h"
 #include "VulkanImage.h"
-#include "Utils/Image.h"
 
 namespace Dlight
 {
@@ -296,52 +295,6 @@ namespace Dlight
 		// EndFrame에 따로 하는 것이유는 스왑체인 재생성시에는 Render->EndFrame을 하지 않기때문이다.
 		++frameIndex;
 		++nextSignalValue;
-	}
-
-	std::unique_ptr<VulkanBuffer> VulkanDevice::CreateVertexBuffer(const void* data, VkDeviceSize byteSize)
-	{
-		FVulkanBufferDesc desc = {};
-		desc.size = byteSize;
-		desc.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-		desc.memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-
-		auto buffer = std::make_unique<VulkanBuffer>(*this, desc);
-
-		UploadBuffer(*buffer, data, byteSize, 0, EResourceState::Undefined, EResourceState::VertexBuffer);
-
-		return buffer;
-	}
-
-	std::unique_ptr<VulkanBuffer> VulkanDevice::CreateIndexBuffer(const void* data, VkDeviceSize byteSize)
-	{
-		FVulkanBufferDesc desc = {};
-		desc.size = byteSize;
-		desc.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-		desc.memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-
-		auto buffer = std::make_unique<VulkanBuffer>(*this, desc);
-
-		UploadBuffer(*buffer, data, byteSize, 0, EResourceState::Undefined, EResourceState::IndexBuffer);
-
-		return buffer;
-	}
-
-	std::unique_ptr<VulkanImage> VulkanDevice::CreateImage2D(Image& image)
-	{
-		FVulkanImageDesc desc = {};
-		desc.width = static_cast<uint32>(image.GetWidth());
-		desc.height = static_cast<uint32>(image.GetHeight());
-		desc.format = image.GetFormat();
-		desc.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-		desc.memoryUsage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
-
-		
-
-		auto gpuImage = std::make_unique<VulkanImage>(*this, desc);
-
-		UploadImage(*gpuImage, image.GetData(), image.GetSize(), EResourceState::Undefined, EResourceState::FragmentShaderRead);
-
-		return gpuImage;
 	}
 
 	void VulkanDevice::UploadImage(VulkanImage& destination, const void* data, VkDeviceSize byteSize, EResourceState beforeState, EResourceState finalState)

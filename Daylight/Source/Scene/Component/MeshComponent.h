@@ -12,9 +12,8 @@ namespace Dlight
         void Render() override;
 
     private:
-        // Vertex Data 
-        // Index Data
-        // Material Path
+        // MeshResource Handle
+        // MaterialResource Handle
 
     };
 }

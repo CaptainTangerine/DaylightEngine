@@ -13,7 +13,6 @@ namespace Dlight
 	class VulkanSwapchain;
 	class VulkanBuffer;
 	class VulkanImage;
-	class Image;
 
 	struct FFrameResource
 	{
@@ -73,15 +72,12 @@ namespace Dlight
 		void EndFrame();
 
 	public:
-		std::unique_ptr<VulkanBuffer> CreateVertexBuffer(const void* data, VkDeviceSize byteSize);
-		std::unique_ptr<VulkanBuffer> CreateIndexBuffer(const void* data, VkDeviceSize byteSize);
-		std::unique_ptr<VulkanImage> CreateImage2D(Image& image);
-
-	private:
 		// CPU Data -> DeviceLocal
 		void UploadImage(VulkanImage& destination, const void* data, VkDeviceSize byteSize, EResourceState beforeState, EResourceState finalState);
-		void TransitionImage(VkCommandBuffer commandBuufer, const VulkanImage& image, EResourceState _src, EResourceState _dst);
 		void UploadBuffer(VulkanBuffer& destination, const void* data, VkDeviceSize size, VkDeviceSize destinationOffset, EResourceState beforeState, EResourceState finalState);
+
+	private:
+		void TransitionImage(VkCommandBuffer commandBuufer, const VulkanImage& image, EResourceState _src, EResourceState _dst);
 		void TransitionBuffer(VkCommandBuffer commandBuffer, const VulkanBuffer& buffer, EResourceState _src, EResourceState _dst);
 
 	private:

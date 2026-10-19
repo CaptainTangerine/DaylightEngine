@@ -13,8 +13,10 @@
 #include <utility>
 #include <vector>
 #include <array>
+#include <unordered_map>
+#include <typeinfo>
+#include <typeindex>
 #include <algorithm>
-
 #include <memory>
 
 // Windows COM

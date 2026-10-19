@@ -1,9 +1,5 @@
 #pragma once
-#include <cstddef>
-#include <cstdint>
-#include <string_view>
-#include <vector>
-#include "CoreTypes.h"
+
 #include "vulkan/vulkan.h"
 
 namespace Dlight
