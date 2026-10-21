@@ -42,6 +42,8 @@
 - 수정 후 Visual Studio 개발 환경에서 별도 `_CL_` 우회 없이 clean Debug 전체 28단계 컴파일·링크 성공. Debug 설정은 프로젝트 차원에서 `/Z7`로 일관된다.
 - 매 프레임 표시로 변경하기 전 Debug 실행 1280×720/FIFO 약 4초: 1초 표본 `241.32`, `240.27`, `239.70 FPS`; 평균 약 `240.43 FPS`. 정상 종료 exit code 0, 캡처된 로그에서 validation warning/error 없음.
 - Release는 전체 소스 컴파일 성공 후 기존 `/LTCG:INCREMENTAL` 링크에서 linker access violation. Release 10초 기준선은 아직 미완료이며 현재 과제를 `verified_complete`로 처리하지 않는다.
+- 사용자 요청으로 파일명 `VulkanPipeline.h/.cpp`는 유지하면서 래퍼를 `VulkanGraphicsPipeline`과 `VulkanComputePipeline`으로 분리했다. 기존 그래픽 호출부의 타입 변경을 포함한 Debug 전체 빌드·링크는 성공했다. 컴퓨트 래퍼는 코드·빌드만 확인했으며 아직 인스턴스 생성, dispatch, 화면 또는 validation으로 검증하지 않았다.
+- 이후 사용자 작업에서 compute descriptor layout/pool/set 할당 초안과 `Blur.hlsl`이 추가됐다. 요청에 따라 depth-stencil image는 `MaxFramesInFlight` 수만큼 생성하고 현재 frame slot으로 선택하도록 분리했다. 현재 Debug 빌드는 descriptor 초기화 함수명 불일치, 미선언 `computeDescriptorSets`, set 할당 구문 오류 등 작성 중 코드에서 실패하므로 depth 변경도 아직 빌드·실행 검증 완료로 기록하지 않는다.
 
 ## 코드와 Git에서 확인한 현재 상태
 
@@ -51,7 +53,7 @@
 | 기능 | 구현 상태 | 검증 상태와 근거 |
 |---|---|---|
 | SDL3 창, Vulkan 장치/스왑체인 | 코드 존재 | 10/21 기존 로그에 창 생성과 RTX 4060 Ti 선택 기록. 이번 검토에서 새 실행/화면은 확인하지 않음 |
-| HLSL → SPIR-V, 삼각형/텍스처 사각형 파이프라인 | 코드 존재·빌드 성공 | DXC가 임의 프로파일을 받으므로 `cs_6_0` 경로를 재사용 가능. 현재 pipeline wrapper는 graphics 전용 |
+| HLSL → SPIR-V, 삼각형/텍스처 사각형 파이프라인 | 코드 존재·빌드 성공 | DXC가 임의 프로파일을 받으므로 `cs_6_0` 경로를 재사용 가능. graphics/compute pipeline wrapper를 분리했으며 compute wrapper의 실제 생성·dispatch는 미검증 |
 | 정점·인덱스 버퍼, staging 업로드 | 코드 존재 | GPU 복사와 transfer → vertex/index 의존성 있음. 현재 draw는 하드코딩 사각형 |
 | Dynamic Rendering, 깊이 attachment | 코드 존재 | `Renderer::Render`의 `vkCmdBeginRendering`/`vkCmdEndRendering`. 3D 깊이 테스트 결과 미검증 |
 | Synchronization2, timeline/바이너리 semaphore | 코드 존재 | `BeginFrame`/`EndFrame`, `vkCmdPipelineBarrier2`, `vkQueueSubmit2`, timeline wait 확인. 동기화 validation 결과 미확보 |

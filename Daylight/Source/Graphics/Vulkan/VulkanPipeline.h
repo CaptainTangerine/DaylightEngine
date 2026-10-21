@@ -5,7 +5,7 @@
 
 namespace Dlight
 {
-	struct FGfxPipelineDesc
+	struct FGraphicsPipelineDesc
 	{
 		VkShaderModule vertexShader = VK_NULL_HANDLE;
 		VkShaderModule fragmentShader = VK_NULL_HANDLE;
@@ -22,22 +22,53 @@ namespace Dlight
 		VkFormat depthFormat = VK_FORMAT_UNDEFINED;
 	};
 
+	struct FComputePipelineDesc
+	{
+		VkShaderModule computeShader = VK_NULL_HANDLE;
+		const char* computeEntryPoint = ShaderConventions::ComputeEntry;
+
+		std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
+	};
+
 	class VulkanDevice;
 
-	class VulkanPipeline
+	class VulkanGraphicsPipeline
 	{
 	public:
-		VulkanPipeline(VulkanDevice& _device, const FGfxPipelineDesc& desc);
-		~VulkanPipeline();
+		VulkanGraphicsPipeline(VulkanDevice& _device, const FGraphicsPipelineDesc& desc);
+		~VulkanGraphicsPipeline();
 
-		VulkanPipeline(const VulkanPipeline& other) = delete;
-		VulkanPipeline& operator= (const VulkanPipeline & other) = delete;
+		VulkanGraphicsPipeline(const VulkanGraphicsPipeline& other) = delete;
+		VulkanGraphicsPipeline& operator=(const VulkanGraphicsPipeline& other) = delete;
 
 		VkPipelineLayout GetPipelineLayout() const { return pipelineLayout; };
 		VkPipeline GetPipeline() const { return pipeline; }
 		
 	private:
-		void Initialize(const FGfxPipelineDesc& desc);
+		void Initialize(const FGraphicsPipelineDesc& desc);
+		void Shutdown();
+
+	private:
+		VulkanDevice& device;
+
+		VkPipelineLayout pipelineLayout = { nullptr };
+		VkPipeline pipeline = { nullptr };
+	};
+
+	class VulkanComputePipeline
+	{
+	public:
+		VulkanComputePipeline(VulkanDevice& _device, const FComputePipelineDesc& desc);
+		~VulkanComputePipeline();
+
+		VulkanComputePipeline(const VulkanComputePipeline& other) = delete;
+		VulkanComputePipeline& operator=(const VulkanComputePipeline& other) = delete;
+
+		VkPipelineLayout GetPipelineLayout() const { return pipelineLayout; }
+		VkPipeline GetPipeline() const { return pipeline; }
+
+	private:
+		void Initialize(const FComputePipelineDesc& desc);
 		void Shutdown();
 
 	private:

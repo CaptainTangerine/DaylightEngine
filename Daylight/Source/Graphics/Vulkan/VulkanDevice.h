@@ -5,6 +5,7 @@
 #include <vma/vk_mem_alloc.h>
 
 #include "VulkanResourceState.h"
+#include "VulkanSwapchain.h"
 
 struct SDL_Window;
 
@@ -17,14 +18,15 @@ namespace Dlight
 
 	struct FFrameResource
 	{
+		uint32 frameSlot = { 0 };
 		VkCommandPool commandPool = { nullptr };
 		VkCommandBuffer commandBuffer = { nullptr };
 		VkSemaphore imageAcquiredSemaphore = { nullptr };
 	};
 
-
 	class VulkanDevice
 	{
+	public:
 		constexpr static uint32   vulkanVersion = { VK_API_VERSION_1_4 };
 		constexpr static uint32   MaxFramesInFlight = { 2 };
 
@@ -37,13 +39,14 @@ namespace Dlight
 		VkPhysicalDevice GetPhysicalDevice() const { return physicalDevice; }
 		VkDevice GetDevice() const { return device; }
 		VkQueue GetGraphicsQueue() const { return gfxQueue; }
-		uint32 GetGraphicsQueueFamilyIndex() const { return gfxQueueFamilyIndex; }
+		uint32 GetGraphicsAndComputeQueueFamilyIndex() const { return gfxAndComputeQueueFamilyIndex; }
 		VkSurfaceKHR GetSurface() const { return vulkanSurface; }
 		VmaAllocator GetVmaAllocator() const { return vmaAllocator;  }
 		VulkanSwapchain& GetSwapchain() { return *swapchain; }
 		const VulkanSwapchain& GetSwapchain() const { return *swapchain; }
-
-		VkCommandBuffer GetCurrentCommandBuffer() const { return GetCurrentFrameResource().commandBuffer; }
+		FFrameResource& GetCurrentFrameResource() { return frameResources[frameIndex % MaxFramesInFlight]; }
+		const FFrameResource& GetCurrentFrameResource() const { return frameResources[frameIndex % MaxFramesInFlight]; }
+		const VkImage GetCurrentSwapchainImage() const { return swapchain->GetSwapchianImage(imageIndex); };
 
 		VkDescriptorSetLayout GetBindlessLayout() const { return bindlessLayout; }
 		VkDescriptorSet GetBindlessSet() const { return bindlessSet; }
@@ -72,9 +75,6 @@ namespace Dlight
 		void TransitionBuffer(VkCommandBuffer commandBuffer, const VulkanBuffer& buffer, EResourceState _src, EResourceState _dst);
 
 	private:
-		FFrameResource& GetCurrentFrameResource() { return frameResources[frameIndex % MaxFramesInFlight]; }
-		const FFrameResource& GetCurrentFrameResource() const { return frameResources[frameIndex % MaxFramesInFlight]; }
-
 		void Initialize(SDL_Window* window, uint32 width, uint32 height);
 		void Shutdown();
 
@@ -110,7 +110,7 @@ namespace Dlight
 		VkDevice device = { VK_NULL_HANDLE };
 
 		// Queue Related
-		uint32 gfxQueueFamilyIndex = { UINT32_MAX } ;
+		uint32 gfxAndComputeQueueFamilyIndex = { UINT32_MAX } ;
 		VkQueue gfxQueue = { VK_NULL_HANDLE };
 
 		// Vulkan Memory Allocater

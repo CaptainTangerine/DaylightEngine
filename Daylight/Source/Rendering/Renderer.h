@@ -8,7 +8,8 @@ namespace Dlight
 {
 	class VulkanDevice;
 	class VulkanSwapchain;
-	class VulkanPipeline;
+	class VulkanGraphicsPipeline;
+	class VulkanComputePipeline;
 	class VulkanBuffer;
 	class VulkanImage;
 	class VulkanSampler;
@@ -27,35 +28,48 @@ namespace Dlight
 		bool CreateSceneColorImage(uint32 width, uint32 height);
 		void DestroySceneColorImage();
 
-		bool CreateDepthStencilImage(uint32 width, uint32 height);
-		void DestroyDepthStencilImage();
+		bool CreateDepthStencilImages(uint32 width, uint32 height);
+		void DestroyDepthStencilImages();
+
 		void OnResize(uint32 width, uint32 height);
 
 		bool CreateTrianglePipelines();
 		bool CreateImageTestPipelines();
+		bool CreateBlurPipeline();
+
+		bool CreateComputeDescriptorSets();
+		void UpdateComputeDescriptorSets();
+		void DestroyComputeDescriptors();
 
 		void DestroyPipelines();
 
 		void Render();
+
 	private:
 		void Initialize();
 		void Shutdown();
 
+		void BeginSceneRendering(VkCommandBuffer commandBuffer);
+		
+		void CopyToPresentImage(VkCommandBuffer commandBuffer, VkImage finalImage);
+
 	private:
 		VulkanDevice& device;
 
-		// SceneColor buffer
+		// SceneColor Image
 		std::unique_ptr<VulkanImage> sceneColorImage = { nullptr };
 
-		// Default depthstencil buffer
-		std::unique_ptr<VulkanImage> depthStencilImage = { nullptr };
+		// Default depth-stencil images
+		std::vector<std::unique_ptr<VulkanImage>> depthStencilImages;
 
 		// Shader Compilier
 		ShaderCompiler shaderCompiler;
 
 		// Pipeline
-		std::unique_ptr<VulkanPipeline> trianglePipeline = { nullptr };
-		std::unique_ptr<VulkanPipeline> imageTestPipeline = { nullptr };
+		std::unique_ptr<VulkanGraphicsPipeline> trianglePipeline = { nullptr };
+		std::unique_ptr<VulkanGraphicsPipeline> imageTestPipeline = { nullptr };
+		std::unique_ptr<VulkanComputePipeline> blurPipeline = { nullptr };
+
 
 		// 색상 삼각형 정점과 인덱스
 		const std::vector<VertexFormat::FColoredVertex> triangleVertices =
@@ -92,6 +106,14 @@ namespace Dlight
 		// 이미지와 공용 샘플러
 		std::unique_ptr<VulkanImage> testImage = { nullptr };
 		std::unique_ptr<VulkanSampler> linearRepeatSampler = { nullptr };
+
+		
+		VkDescriptorSetLayout computeDescriptorSetLayout = { VK_NULL_HANDLE } ;
+		VkDescriptorPool computeDescriptorPool = { VK_NULL_HANDLE };
+		std::vector<VkDescriptorSet> computeDescriptorSets;
+
+		std::vector<std::unique_ptr<VulkanImage>> sceneColorImages;
+		std::vector<std::unique_ptr<VulkanImage>> computeOutputImages;
 
 	};
 }

@@ -7,7 +7,6 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 
-#include "VulkanSwapchain.h"
 #include "VulkanBuffer.h"
 #include "VulkanImage.h"
 #include "Utils/Image.h"
@@ -153,30 +152,6 @@ namespace Dlight
 			DL_LOG_ERROR("Failed to begin command buffer: ");
 			std::abort();
 		}
-
-		// Color Attachment
-		VkImageMemoryBarrier2 layoutBarrier{};
-		layoutBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-		layoutBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
-		layoutBarrier.srcAccessMask = 0;
-		layoutBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-		layoutBarrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-		layoutBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		layoutBarrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		layoutBarrier.image = swapchain->GetSwapchianImage(imageIndex);
-		layoutBarrier.subresourceRange.aspectMask = { VK_IMAGE_ASPECT_COLOR_BIT };
-		layoutBarrier.subresourceRange.baseMipLevel = 0;
-		layoutBarrier.subresourceRange.levelCount = 1;
-		layoutBarrier.subresourceRange.baseArrayLayer = 0;
-		layoutBarrier.subresourceRange.layerCount = 1;
-
-		VkDependencyInfo depInfo = {};
-		depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-		depInfo.imageMemoryBarrierCount = 1;
-		depInfo.pImageMemoryBarriers = &layoutBarrier;
-		vkCmdPipelineBarrier2(res.commandBuffer, &depInfo);
-
-
 	}
 
 	void VulkanDevice::EndFrame()
@@ -187,11 +162,11 @@ namespace Dlight
 
 		VkImageMemoryBarrier2 presentLayoutBarrier = {};
 		presentLayoutBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-		presentLayoutBarrier.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		presentLayoutBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		presentLayoutBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		presentLayoutBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 		presentLayoutBarrier.dstStageMask = VK_PIPELINE_STAGE_NONE;
 		presentLayoutBarrier.dstAccessMask = 0;
-		presentLayoutBarrier.oldLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
+		presentLayoutBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 		presentLayoutBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 		presentLayoutBarrier.image = swapchain->GetSwapchianImage(imageIndex);
 		presentLayoutBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -220,14 +195,14 @@ namespace Dlight
 		VkSemaphoreSubmitInfo imageAquireWaitInfo = {};
 		imageAquireWaitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
 		imageAquireWaitInfo.semaphore = res.imageAcquiredSemaphore;
-		imageAquireWaitInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		imageAquireWaitInfo.stageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
 
 		std::vector<VkSemaphoreSubmitInfo> semaphoreSignals;
 		semaphoreSignals.resize(2);
 
 		//render complete semaphore
 		semaphoreSignals[0].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-		semaphoreSignals[0].stageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT;
+		semaphoreSignals[0].stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
 		semaphoreSignals[0].semaphore = renderComplete;
 
 		// timellinesemaphore
@@ -372,7 +347,7 @@ namespace Dlight
 		VkCommandPoolCreateInfo poolInfo = {};
 		poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 		poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-		poolInfo.queueFamilyIndex = gfxQueueFamilyIndex;
+		poolInfo.queueFamilyIndex = gfxAndComputeQueueFamilyIndex;
 
 		if (VK_SUCCESS != vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool))
 		{
@@ -524,7 +499,7 @@ namespace Dlight
 		VkCommandPoolCreateInfo poolInfo = {};
 		poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 		poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-		poolInfo.queueFamilyIndex = gfxQueueFamilyIndex;
+		poolInfo.queueFamilyIndex = gfxAndComputeQueueFamilyIndex;
 
 		if (VK_SUCCESS != vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool))
 		{
@@ -767,7 +742,7 @@ namespace Dlight
 
 		physicalDevice = VK_NULL_HANDLE;
 		gfxQueue = VK_NULL_HANDLE;
-		gfxQueueFamilyIndex = UINT32_MAX;
+		gfxAndComputeQueueFamilyIndex = UINT32_MAX;
 
 	}
 
@@ -924,9 +899,9 @@ namespace Dlight
 
 			const auto& props = queueFamilyProps[curFamilyIndex];
 
-			if ((props.queueFamilyProperties.queueFlags & VK_QUEUE_GRAPHICS_BIT) && bHasPresentSupport)
+			if ((props.queueFamilyProperties.queueFlags & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)) && bHasPresentSupport)
 			{
-				gfxQueueFamilyIndex = curFamilyIndex;
+				gfxAndComputeQueueFamilyIndex = curFamilyIndex;
 				return true;
 			}
 		}
@@ -987,7 +962,7 @@ namespace Dlight
 		std::vector<float> queuePriorities{ 1.f };
 		VkDeviceQueueCreateInfo gfxQueueInfo{};
 		gfxQueueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		gfxQueueInfo.queueFamilyIndex = gfxQueueFamilyIndex;
+		gfxQueueInfo.queueFamilyIndex = gfxAndComputeQueueFamilyIndex;
 		gfxQueueInfo.queueCount = 1;
 		gfxQueueInfo.pQueuePriorities = queuePriorities.data();
 
@@ -1009,7 +984,7 @@ namespace Dlight
 			return false;
 		}
 
-		vkGetDeviceQueue(device, gfxQueueFamilyIndex, 0, &gfxQueue);
+		vkGetDeviceQueue(device, gfxAndComputeQueueFamilyIndex, 0, &gfxQueue);
 		if (!gfxQueue)
 		{
 			DL_LOG_ERROR("Could't get the graphics queue");
@@ -1212,12 +1187,15 @@ namespace Dlight
 	}
 	bool VulkanDevice::CreateCommandBuffers()
 	{
-		for (FFrameResource& res : frameResources)
+		for (uint32 frameSlot = 0; frameSlot < MaxFramesInFlight; ++frameSlot)
 		{
+			FFrameResource& res = frameResources[frameSlot];
+			res.frameSlot = frameSlot;
+
 			VkCommandPoolCreateInfo poolInfo = {};
 
 			poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-			poolInfo.queueFamilyIndex = gfxQueueFamilyIndex;
+			poolInfo.queueFamilyIndex = gfxAndComputeQueueFamilyIndex;
 
 			if (VK_SUCCESS != vkCreateCommandPool(device, &poolInfo, nullptr, &res.commandPool))
 			{

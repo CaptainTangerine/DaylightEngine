@@ -37,7 +37,7 @@ namespace Dlight
 			std::abort();
 		}
 
-		if (!CreateDepthStencilImage(width, height))
+		if (!CreateDepthStencilImages(width, height))
 		{
 			DL_LOG_ERROR("Failed to create depth-stencil resources");
 			std::abort();
@@ -111,16 +111,23 @@ namespace Dlight
 
 		CreateTrianglePipelines();
 		CreateImageTestPipelines();
+
+		// Blur
+		CreateBlurPipeline();
+
+		CreateComputeDescriptorSets();
+		UpdateComputeDescriptorSets();
 	}
 
 	void Renderer::Shutdown()
 	{
 		DestroyPipelines();
+		DestroyComputeDescriptors();
 
 		linearRepeatSampler.reset();
 		testImage.reset();
 
-		DestroyDepthStencilImage();
+		DestroyDepthStencilImages();
 		DestroySceneColorImage();
 	}
 
@@ -137,7 +144,7 @@ namespace Dlight
 		imageInfo.arrayLayers = 1;
 		imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 		imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;;
 		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
@@ -160,7 +167,7 @@ namespace Dlight
 		sceneColorImage.reset();
 	}
 
-	bool Renderer::CreateDepthStencilImage(uint32 width, uint32 height)
+	bool Renderer::CreateDepthStencilImages(uint32 width, uint32 height)
 	{
 		VkFormatProperties formatProperties{};
 		vkGetPhysicalDeviceFormatProperties(device.GetPhysicalDevice(), depthStencilFormat, &formatProperties);
@@ -170,7 +177,7 @@ namespace Dlight
 			return false;
 		}
 
-		DestroyDepthStencilImage();
+		DestroyDepthStencilImages();
 
 		VkImageCreateInfo depthStencilCreateInfo = {};
 		depthStencilCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -197,13 +204,19 @@ namespace Dlight
 		imageViewInfo.subresourceRange.baseArrayLayer = 0;
 		imageViewInfo.subresourceRange.layerCount = 1;
 
-		depthStencilImage = std::make_unique<VulkanImage>(device, depthStencilCreateInfo, imageViewInfo);
+		depthStencilImages.reserve(VulkanDevice::MaxFramesInFlight);
+		for (uint32 frameSlot = 0; frameSlot < VulkanDevice::MaxFramesInFlight; ++frameSlot)
+		{
+			depthStencilImages.push_back(
+				std::make_unique<VulkanImage>(device, depthStencilCreateInfo, imageViewInfo));
+		}
+
 		return true;
 	}
 
-	void Renderer::DestroyDepthStencilImage()
+	void Renderer::DestroyDepthStencilImages()
 	{
-		depthStencilImage.reset();
+		depthStencilImages.clear();
 	}
 
 	void Renderer::OnResize(uint32 width, uint32 height)
@@ -219,7 +232,7 @@ namespace Dlight
 			std::abort();
 		}
 
-		if (!CreateDepthStencilImage(width, height))
+		if (!CreateDepthStencilImages(width, height))
 		{
 			DL_LOG_ERROR("Failed to recreate depth-stencil resources");
 			std::abort();
@@ -265,7 +278,7 @@ namespace Dlight
 			std::abort();
 		}
 
-		FGfxPipelineDesc desc{};
+		FGraphicsPipelineDesc desc{};
 		desc.vertexShader = vertModule;
 		desc.fragmentShader = fragModule;
 		desc.vertexEntryPoint = ShaderConventions::VertexEntry;
@@ -293,7 +306,7 @@ namespace Dlight
 		desc.colorFormat = VulkanSwapchain::swapchainFormat;
 		desc.depthFormat = depthStencilFormat;
 
-		trianglePipeline = std::make_unique<VulkanPipeline>(device, desc);
+		trianglePipeline = std::make_unique<VulkanGraphicsPipeline>(device, desc);
 
 		vkDestroyShaderModule(device.GetDevice(), vertModule, nullptr);
 		vkDestroyShaderModule(device.GetDevice(), fragModule, nullptr);
@@ -340,7 +353,7 @@ namespace Dlight
 			std::abort();
 		}
 
-		FGfxPipelineDesc desc{};
+		FGraphicsPipelineDesc desc{};
 		desc.descriptorSetLayouts =
 		{
 			device.GetBindlessLayout(),
@@ -373,12 +386,165 @@ namespace Dlight
 		desc.colorFormat = VulkanSwapchain::swapchainFormat;
 		desc.depthFormat = depthStencilFormat;
 
-		imageTestPipeline = std::make_unique<VulkanPipeline>(device, desc);
+		imageTestPipeline = std::make_unique<VulkanGraphicsPipeline>(device, desc);
 
 		vkDestroyShaderModule(device.GetDevice(), vertModule, nullptr);
 		vkDestroyShaderModule(device.GetDevice(), fragModule, nullptr);
 
 		return true;
+	}
+
+	bool Renderer::CreateBlurPipeline()
+	{
+		const std::filesystem::path shaderPath = Paths::GetShaderPath(L"Blur.hlsl");
+		auto compCode = shaderCompiler.Compile(
+			shaderPath.c_str(),
+			ShaderConventions::ComputeEntry,
+			L"cs_6_0");
+
+		VkShaderModule compModule = VK_NULL_HANDLE;
+		
+		VkShaderModuleCreateInfo compModuleInfo{};
+		compModuleInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+		compModuleInfo.codeSize = compCode.size() * sizeof(uint32);
+		compModuleInfo.pCode = compCode.data();
+
+		if (VK_SUCCESS != vkCreateShaderModule(device.GetDevice(), &compModuleInfo, nullptr, &compModule))
+		{
+			DL_LOG_ERROR("Failed to create vertex shader module");
+			std::abort();
+		}
+
+		FComputePipelineDesc pipelineDesc = {};
+		pipelineDesc.computeShader = compModule;
+		pipelineDesc.computeEntryPoint = ShaderConventions::ComputeEntry;
+		
+		std::array<VkDescriptorSetLayoutBinding, 2> bindings = {};
+		bindings[0].binding = 0;
+		bindings[0].descriptorCount = 1;
+		bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+		bindings[0].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+		bindings[1].binding = 1;
+		bindings[1].descriptorCount = 1;
+		bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+		bindings[1].stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = bindings.size();
+		layoutInfo.pBindings = bindings.data();
+
+
+		if (VK_SUCCESS != vkCreateDescriptorSetLayout(device.GetDevice(), &layoutInfo, nullptr, &computeDescriptorSetLayout))
+		{
+			DL_LOG_ERROR("Failed to create compute descriptor set layout");
+			std::abort();
+		}
+
+		pipelineDesc.descriptorSetLayouts = {
+			computeDescriptorSetLayout
+		};
+
+		blurPipeline = std::make_unique<VulkanComputePipeline>(device.GetDevice(), pipelineDesc);
+
+		return true;
+	}
+
+	bool Renderer::CreateComputeDescriptorSets()
+	{
+		sceneColorImages.resize(VulkanDevice::MaxFramesInFlight);
+		computeOutputImages.resize(VulkanDevice::MaxFramesInFlight);
+		computeDescriptorSets.resize(VulkanDevice::MaxFramesInFlight);
+
+		// DescriptorPool 
+		constexpr uint32 frameCount = VulkanDevice::MaxFramesInFlight;
+
+		std::array<VkDescriptorPoolSize, 2> poolSizes = {};
+		poolSizes[0].descriptorCount = frameCount;
+		poolSizes[0].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+		poolSizes[1].descriptorCount = frameCount;
+		poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+
+		VkDescriptorPoolCreateInfo poolInfo{};
+		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolInfo.maxSets = frameCount;
+		poolInfo.poolSizeCount = static_cast<uint32>(poolSizes.size());
+		poolInfo.pPoolSizes = poolSizes.data();
+
+		if (VK_SUCCESS != vkCreateDescriptorPool(device.GetDevice(), &poolInfo, nullptr, &computeDescriptorPool))
+		{
+			DL_LOG_ERROR("Fail to Create compute descriptorSet Pool");
+			std::abort();
+		}
+
+		std::array<VkDescriptorSetLayout, frameCount> layouts;
+		layouts.fill(computeDescriptorSetLayout);
+
+		VkDescriptorSetAllocateInfo allocateInfo{};
+		allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocateInfo.descriptorPool = computeDescriptorPool;
+		allocateInfo.descriptorSetCount = frameCount;
+		allocateInfo.pSetLayouts = layouts.data();
+
+		if (VK_SUCCESS != vkAllocateDescriptorSets(device.GetDevice(), &allocateInfo, computeDescriptorSets.data()))
+		{
+			DL_LOG_ERROR("Fail to allocate compute descriptorSet");
+			std::abort();
+		}
+
+		
+		return true;
+	}
+
+	void Renderer::UpdateComputeDescriptorSets()
+	{
+		const uint32 frameCount = VulkanDevice::MaxFramesInFlight;
+
+		for (uint32 frameSlot = 0; frameSlot < frameCount; ++frameSlot)
+		{
+			VkDescriptorImageInfo sceneColorInfo{};
+			sceneColorInfo.imageView = sceneColorImages[frameSlot]->GetImageView();
+			sceneColorInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+			VkDescriptorImageInfo computeOutputInfo = {};
+			computeOutputInfo.imageView = computeOutputImages[frameSlot]->GetImageView();
+			computeOutputInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+			std::array<VkWriteDescriptorSet, 2> writes = {};
+			writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writes[0].dstSet = computeDescriptorSets[frameSlot];
+			writes[0].dstBinding = 0;
+			writes[0].descriptorCount = 1;
+			writes[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+			writes[0].pImageInfo = &sceneColorInfo;
+
+			writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writes[1].dstSet = computeDescriptorSets[frameSlot];
+			writes[1].dstBinding = 0;
+			writes[1].descriptorCount = 1;
+			writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+			writes[1].pImageInfo = &computeOutputInfo;
+
+			vkUpdateDescriptorSets(device.GetDevice(), static_cast<uint32>(writes.size()), writes.data(), 0, nullptr);
+		}
+	}
+
+	void Renderer::DestroyComputeDescriptors()
+	{
+		if (computeDescriptorPool != VK_NULL_HANDLE)
+		{
+			vkDestroyDescriptorPool(device.GetDevice(), computeDescriptorPool, nullptr);
+			computeDescriptorPool = VK_NULL_HANDLE;
+		}
+
+		computeDescriptorSets.clear();
+
+		if (computeDescriptorSetLayout != VK_NULL_HANDLE)
+		{
+			vkDestroyDescriptorSetLayout(device.GetDevice(), computeDescriptorSetLayout, nullptr);
+			computeDescriptorSetLayout = VK_NULL_HANDLE;
+		}
 	}
 
 	void Renderer::DestroyPipelines()
@@ -392,11 +558,18 @@ namespace Dlight
 		{
 			imageTestPipeline.reset();
 		}
+
+		if (blurPipeline)
+		{
+			blurPipeline.reset();
+		}
 	}
 
-	void Renderer::Render()
+	void Renderer::BeginSceneRendering(VkCommandBuffer commandBuffer)
 	{
-		const VkCommandBuffer commandBuffer = device.GetCurrentCommandBuffer();
+		const FFrameResource& frameResource = device.GetCurrentFrameResource();
+		VulkanImage& depthStencilImage = *depthStencilImages[frameResource.frameSlot];
+
 		const VkExtent2D extent = {
 			sceneColorImage->GetWidth(),
 			sceneColorImage->GetHeight()
@@ -425,7 +598,7 @@ namespace Dlight
 		layoutBarriers[1].dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
 		layoutBarriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		layoutBarriers[1].newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		layoutBarriers[1].image = depthStencilImage->GetImage();
+		layoutBarriers[1].image = depthStencilImage.GetImage();
 		layoutBarriers[1].subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
 		layoutBarriers[1].subresourceRange.baseMipLevel = 0;
 		layoutBarriers[1].subresourceRange.levelCount = 1;
@@ -448,7 +621,7 @@ namespace Dlight
 
 		VkRenderingAttachmentInfo depthAttachmentInfo = {};
 		depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-		depthAttachmentInfo.imageView = depthStencilImage->GetImageView();
+		depthAttachmentInfo.imageView = depthStencilImage.GetImageView();
 		depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -465,6 +638,76 @@ namespace Dlight
 		renderingInfo.pDepthAttachment = &depthAttachmentInfo;
 
 		vkCmdBeginRendering(commandBuffer, &renderingInfo);
+
+	}
+
+	void Renderer::CopyToPresentImage(VkCommandBuffer commandBuffer, VkImage finalImage)
+	{
+		VkImage presentImage = device.GetCurrentSwapchainImage();
+
+		std::array<VkImageMemoryBarrier2, 2> barriers{};
+		
+		// 최종 이미지 배리어
+		barriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		barriers[0].srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		barriers[0].srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		barriers[0].dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		barriers[0].dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+		barriers[0].oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		barriers[0].newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		barriers[0].image = finalImage;
+		barriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		barriers[0].subresourceRange.baseMipLevel = 0;
+		barriers[0].subresourceRange.levelCount = 1;
+		barriers[0].subresourceRange.baseArrayLayer = 0;
+		barriers[0].subresourceRange.layerCount = 1;
+		
+		// 스왑체인 이미지 배리어 
+		barriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		barriers[1].srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+		barriers[1].srcAccessMask = VK_ACCESS_2_NONE;
+		barriers[1].dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		barriers[1].dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		barriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		barriers[1].newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		barriers[1].image = presentImage;
+		barriers[1].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		barriers[1].subresourceRange.baseMipLevel = 0;
+		barriers[1].subresourceRange.levelCount = 1;
+		barriers[1].subresourceRange.baseArrayLayer = 0;
+		barriers[1].subresourceRange.layerCount = 1;
+
+		VkDependencyInfo depInfo = {};
+		depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		depInfo.imageMemoryBarrierCount = static_cast<uint32>(barriers.size());;
+		depInfo.pImageMemoryBarriers = barriers.data();
+
+		vkCmdPipelineBarrier2(commandBuffer, &depInfo);
+
+		VkImageCopy copyRegion{};
+		copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		copyRegion.srcSubresource.layerCount = 1;
+
+		copyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		copyRegion.dstSubresource.layerCount = 1;
+
+		copyRegion.extent = {
+			sceneColorImage->GetWidth(),
+			sceneColorImage->GetHeight(),
+			1
+		};
+		vkCmdCopyImage(commandBuffer, finalImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, presentImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+	}
+
+	void Renderer::Render()
+	{
+		const VkCommandBuffer commandBuffer = device.GetCurrentFrameResource().commandBuffer;
+		const VkExtent2D extent = {
+			sceneColorImage->GetWidth(),
+			sceneColorImage->GetHeight()
+		};
+
+		BeginSceneRendering(commandBuffer);
 
 		{
 			VkViewport viewport = {};
@@ -513,6 +756,9 @@ namespace Dlight
 
 		}
 		vkCmdEndRendering(commandBuffer);
-	}
 
+		const VkImage finalImage = sceneColorImage->GetImage();
+		// finalImage를 스왑체인 이미지로 변경
+		CopyToPresentImage(commandBuffer, finalImage);
+	}
 }
