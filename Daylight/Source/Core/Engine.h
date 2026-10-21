@@ -37,6 +37,7 @@ namespace Dlight
 		// 프레임 전체의 CPU/present 경과 시간. 게임 업데이트에서 사용할 수 있도록 초 단위로 저장한다.
 		using FrameClock = std::chrono::steady_clock;
 		FrameClock::time_point previousFrameTime = {};
+		FrameClock::time_point logSampleStart = {};
 		float deltaTime = { 0.0f };
 
 		std::unique_ptr<VulkanDevice> vulkanDevice = { nullptr };

@@ -28,6 +28,21 @@ namespace Dlight
 
 	void Renderer::Initialize()
 	{
+		const uint32 width = device.GetSwapchain().GetWidth();
+		const uint32 height = device.GetSwapchain().GetHeight();
+
+		if (!CreateSceneColorImage(width, height))
+		{
+			DL_LOG_ERROR("Failed to create scene-color resources");
+			std::abort();
+		}
+
+		if (!CreateDepthStencilImage(width, height))
+		{
+			DL_LOG_ERROR("Failed to create depth-stencil resources");
+			std::abort();
+		}
+
 		const std::filesystem::path imagePath = Paths::GetAssetPath(L"Image/Test.jpg");
 		Image image(imagePath.string());
 		testImage = device.CreateImage2D(image);
@@ -67,11 +82,11 @@ namespace Dlight
 		triangleIndexBuffer = device.CreateIndexBuffer(
 			triangleIndices.data(),
 			static_cast<VkDeviceSize>(sizeof(triangleIndices[0]) * triangleIndices.size()));
-		
+
 		VkDescriptorImageInfo textureInfo = {};
 		textureInfo.imageView = testImage->GetImageView();
 		textureInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		
+
 		VkDescriptorImageInfo samplerDescriptorInfo = {};
 		samplerDescriptorInfo.sampler = linearRepeatSampler->GetSampler();
 
@@ -104,6 +119,111 @@ namespace Dlight
 
 		linearRepeatSampler.reset();
 		testImage.reset();
+
+		DestroyDepthStencilImage();
+		DestroySceneColorImage();
+	}
+
+	bool Renderer::CreateSceneColorImage(uint32 width, uint32 height)
+	{
+		DestroySceneColorImage();
+
+		VkImageCreateInfo imageInfo{};
+		imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		imageInfo.imageType = VK_IMAGE_TYPE_2D;
+		imageInfo.format = VulkanSwapchain::swapchainFormat;
+		imageInfo.extent = { width, height, 1 };
+		imageInfo.mipLevels = 1;
+		imageInfo.arrayLayers = 1;
+		imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+		imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+		VkImageViewCreateInfo imageViewInfo{};
+		imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		imageViewInfo.format = imageInfo.format;
+		imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		imageViewInfo.subresourceRange.baseMipLevel = 0;
+		imageViewInfo.subresourceRange.levelCount = 1;
+		imageViewInfo.subresourceRange.baseArrayLayer = 0;
+		imageViewInfo.subresourceRange.layerCount = 1;
+
+		sceneColorImage = std::make_unique<VulkanImage>(device, imageInfo, imageViewInfo);
+		return true;
+	}
+
+	void Renderer::DestroySceneColorImage()
+	{
+		sceneColorImage.reset();
+	}
+
+	bool Renderer::CreateDepthStencilImage(uint32 width, uint32 height)
+	{
+		VkFormatProperties formatProperties{};
+		vkGetPhysicalDeviceFormatProperties(device.GetPhysicalDevice(), depthStencilFormat, &formatProperties);
+		if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT))
+		{
+			DL_LOG_ERROR("VK_FORMAT_D32_SFLOAT_S8_UINT is not supported as a depth-stencil attachment");
+			return false;
+		}
+
+		DestroyDepthStencilImage();
+
+		VkImageCreateInfo depthStencilCreateInfo = {};
+		depthStencilCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		depthStencilCreateInfo.imageType = VK_IMAGE_TYPE_2D;
+		depthStencilCreateInfo.format = depthStencilFormat;
+		depthStencilCreateInfo.extent.width = width;
+		depthStencilCreateInfo.extent.height = height;
+		depthStencilCreateInfo.extent.depth = 1;
+		depthStencilCreateInfo.mipLevels = 1;
+		depthStencilCreateInfo.arrayLayers = 1;
+		depthStencilCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+		depthStencilCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+		depthStencilCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		depthStencilCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		depthStencilCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+		VkImageViewCreateInfo imageViewInfo{};
+		imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		imageViewInfo.format = depthStencilFormat;
+		imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+		imageViewInfo.subresourceRange.baseMipLevel = 0;
+		imageViewInfo.subresourceRange.levelCount = 1;
+		imageViewInfo.subresourceRange.baseArrayLayer = 0;
+		imageViewInfo.subresourceRange.layerCount = 1;
+
+		depthStencilImage = std::make_unique<VulkanImage>(device, depthStencilCreateInfo, imageViewInfo);
+		return true;
+	}
+
+	void Renderer::DestroyDepthStencilImage()
+	{
+		depthStencilImage.reset();
+	}
+
+	void Renderer::OnResize(uint32 width, uint32 height)
+	{
+		if (width == 0 || height == 0)
+		{
+			return;
+		}
+
+		if (!CreateSceneColorImage(width, height))
+		{
+			DL_LOG_ERROR("Failed to recreate scene-color resources");
+			std::abort();
+		}
+
+		if (!CreateDepthStencilImage(width, height))
+		{
+			DL_LOG_ERROR("Failed to recreate depth-stencil resources");
+			std::abort();
+		}
 	}
 
 	bool Renderer::CreateTrianglePipelines()
@@ -171,7 +291,7 @@ namespace Dlight
 		desc.vertexAttributes[1].offset = offsetof(VertexFormat::FColoredVertex, color);
 
 		desc.colorFormat = VulkanSwapchain::swapchainFormat;
-		desc.depthFormat = device.GetDepthStencilFormat();
+		desc.depthFormat = depthStencilFormat;
 
 		trianglePipeline = std::make_unique<VulkanPipeline>(device, desc);
 
@@ -251,7 +371,7 @@ namespace Dlight
 		desc.vertexAttributes[1].offset = offsetof(VertexFormat::FTexturedVertex, texcoord);
 
 		desc.colorFormat = VulkanSwapchain::swapchainFormat;
-		desc.depthFormat = device.GetDepthStencilFormat();
+		desc.depthFormat = depthStencilFormat;
 
 		imageTestPipeline = std::make_unique<VulkanPipeline>(device, desc);
 
@@ -276,11 +396,51 @@ namespace Dlight
 
 	void Renderer::Render()
 	{
-		const auto frameCtx = device.GetCurrentRenderFrameContext();
+		const VkCommandBuffer commandBuffer = device.GetCurrentCommandBuffer();
+		const VkExtent2D extent = {
+			sceneColorImage->GetWidth(),
+			sceneColorImage->GetHeight()
+		};
+
+		std::array<VkImageMemoryBarrier2, 2> layoutBarriers{};
+
+		layoutBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		layoutBarriers[0].srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		layoutBarriers[0].srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		layoutBarriers[0].dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		layoutBarriers[0].dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		layoutBarriers[0].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		layoutBarriers[0].newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		layoutBarriers[0].image = sceneColorImage->GetImage();
+		layoutBarriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		layoutBarriers[0].subresourceRange.baseMipLevel = 0;
+		layoutBarriers[0].subresourceRange.levelCount = 1;
+		layoutBarriers[0].subresourceRange.baseArrayLayer = 0;
+		layoutBarriers[0].subresourceRange.layerCount = 1;
+
+		layoutBarriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		layoutBarriers[1].srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+		layoutBarriers[1].srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		layoutBarriers[1].dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
+		layoutBarriers[1].dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+		layoutBarriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		layoutBarriers[1].newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		layoutBarriers[1].image = depthStencilImage->GetImage();
+		layoutBarriers[1].subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+		layoutBarriers[1].subresourceRange.baseMipLevel = 0;
+		layoutBarriers[1].subresourceRange.levelCount = 1;
+		layoutBarriers[1].subresourceRange.baseArrayLayer = 0;
+		layoutBarriers[1].subresourceRange.layerCount = 1;
+
+		VkDependencyInfo dependencyInfo{};
+		dependencyInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		dependencyInfo.imageMemoryBarrierCount = static_cast<uint32>(layoutBarriers.size());
+		dependencyInfo.pImageMemoryBarriers = layoutBarriers.data();
+		vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
 
 		VkRenderingAttachmentInfo colorAttachmentInfo = {};
 		colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-		colorAttachmentInfo.imageView = frameCtx.colorImageView;
+		colorAttachmentInfo.imageView = sceneColorImage->GetImageView();
 		colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -288,40 +448,40 @@ namespace Dlight
 
 		VkRenderingAttachmentInfo depthAttachmentInfo = {};
 		depthAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-		depthAttachmentInfo.imageView = frameCtx.depthStencilImageView;
+		depthAttachmentInfo.imageView = depthStencilImage->GetImageView();
 		depthAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		depthAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		depthAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		depthAttachmentInfo.clearValue.depthStencil = {1.f, 0};
+		depthAttachmentInfo.clearValue.depthStencil = { 1.f, 0 };
 
 		VkRenderingInfo renderingInfo = {};
 		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
 		renderingInfo.renderArea.offset.x = 0;
 		renderingInfo.renderArea.offset.y = 0;
-		renderingInfo.renderArea.extent = frameCtx.extent;
+		renderingInfo.renderArea.extent = extent;
 		renderingInfo.layerCount = 1;
 		renderingInfo.colorAttachmentCount = 1;
 		renderingInfo.pColorAttachments = &colorAttachmentInfo;
 		renderingInfo.pDepthAttachment = &depthAttachmentInfo;
 
-		vkCmdBeginRendering(frameCtx.commandBuffer, &renderingInfo);
+		vkCmdBeginRendering(commandBuffer, &renderingInfo);
 
 		{
 			VkViewport viewport = {};
 			viewport.x = 0;
-			viewport.y = static_cast<float>(frameCtx.extent.height);
-			viewport.width = static_cast<float>(frameCtx.extent.width);
+			viewport.y = static_cast<float>(extent.height);
+			viewport.width = static_cast<float>(extent.width);
 			// 다렉 좌표계를 따르고 마지막 뷰포트시 음수로 하여서 vulkan 좌표계와 일치
-			viewport.height = -static_cast<float>(frameCtx.extent.height);
+			viewport.height = -static_cast<float>(extent.height);
 			viewport.minDepth = 0.0f;
 			viewport.maxDepth = 1.0f;
-			vkCmdSetViewport(frameCtx.commandBuffer, 0, 1, &viewport);
+			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
 
 			VkRect2D scissor = {};
 			scissor.offset.x = 0;
 			scissor.offset.y = 0;
-			scissor.extent = frameCtx.extent;
-			vkCmdSetScissor(frameCtx.commandBuffer, 0, 1, &scissor);
+			scissor.extent = extent;
+			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
 			VkDescriptorSet sets[2] =
 			{
@@ -330,7 +490,7 @@ namespace Dlight
 			};
 
 			vkCmdBindDescriptorSets(
-				frameCtx.commandBuffer,
+				commandBuffer,
 				VK_PIPELINE_BIND_POINT_GRAPHICS,
 				imageTestPipeline->GetPipelineLayout(),
 				0,
@@ -338,21 +498,21 @@ namespace Dlight
 				sets,
 				0,
 				nullptr);
-			
-			//vkCmdBindPipeline(frameCtx.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipeline->GetPipeline());
-			vkCmdBindPipeline(frameCtx.commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imageTestPipeline->GetPipeline());
-			
+
+			//vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipeline->GetPipeline());
+			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imageTestPipeline->GetPipeline());
+
 
 			const VkBuffer vertexBuffer = imageVertexBuffer->GetBuffer();
 			const VkDeviceSize offset = 0;
-			
-			vkCmdBindVertexBuffers(frameCtx.commandBuffer, 0, 1, &vertexBuffer, &offset);
-			vkCmdBindIndexBuffer(frameCtx.commandBuffer, imageIndexBuffer->GetBuffer(), 0, VK_INDEX_TYPE_UINT16);
-			vkCmdDrawIndexed(frameCtx.commandBuffer, static_cast<uint32_t>(imageIndices.size()), 1, 0, 0, 0);
+
+			vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &offset);
+			vkCmdBindIndexBuffer(commandBuffer, imageIndexBuffer->GetBuffer(), 0, VK_INDEX_TYPE_UINT16);
+			vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(imageIndices.size()), 1, 0, 0, 0);
 
 
 		}
-		vkCmdEndRendering(frameCtx.commandBuffer);
+		vkCmdEndRendering(commandBuffer);
 	}
 
 }

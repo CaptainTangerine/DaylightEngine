@@ -30,11 +30,16 @@
 ### 2026-10-21 구현·검증 기록
 
 - `Engine`에 초 단위 `deltaTime`과 `steady_clock` 기반 프레임 시각을 추가했다. 최소화·스왑체인 skip 때 시각을 reset한다.
-- 사용자 요청에 따라 1초 누적 표본 대신 창 제목을 매 프레임 갱신한다. 형식: `Daylight | 순간 FPS | deltaTime ms | FIFO`. 로그는 측정 왜곡과 스팸을 피하기 위해 매 프레임 출력하지 않는다.
+- 사용자 요청에 따라 창 제목은 매 프레임 `Daylight | 순간 FPS | deltaTime ms`로 갱신하고, 로그는 평균을 별도로 계산하지 않고 1초마다 현재 창 제목 문자열을 그대로 출력한다.
+- Debug 직접 실행에서 FPS 로그 시각 `13:05:37.743`, `38.744`, `39.745` 등 약 1.001초 간격을 확인했다. 테스트 종료는 PTY에서 Ctrl+C로 수행했다.
+- 실제 X 버튼 재현에서 MSVC Run-Time Check Failure #2(`engine` 주변 스택 손상)를 확인했다. `Engine.h`에 로그 멤버를 추가한 뒤 Ninja가 헤더 의존성을 기록하지 않아 `main.cpp`가 예전 클래스 크기로 남은 것이 직접 원인이었다. clean 전체 빌드 후 실제 X 버튼 종료에서 오류 창 없이 프로세스 종료와 로그 flush를 확인했다.
+- 재발 방지를 위해 SDL3 `SDL_EVENT_WINDOW_CLOSE_REQUESTED`를 정상 종료 경로로 연결하고, CMake 프리셋의 `VSLANG=1033`을 configure/build 양쪽에 고정해 Ninja `/showIncludes` 접두사와 MSVC 출력을 일치시켰다.
+- Visual Studio 번들 CMake로 fresh configure/build 28단계 성공. Ninja deps에서 `main.cpp`가 `Engine.h`를 추적하는 것을 확인했고, fresh 실행본의 실제 X 버튼 클릭 후 런타임 오류 창 없이 프로세스 종료 및 로그 flush를 확인했다.
 - `Daylight/Icon.png`를 런타임 `Assets/Image/Icon.png`로 복사하고, 창 생성 직후 `stb_image` RGBA 데이터와 `SDL_SetWindowIcon`으로 창 아이콘을 설정한다.
 - 아이콘 변경 후 Debug 재빌드 성공. 런타임 아이콘 파일 복사를 확인했고 약 2초 실행에서 아이콘 관련 경고 없이 정상 종료 code 0.
 - 사용자 피드백에 따라 원본의 넓은 검은 여백을 제거하고, 둥근 아이콘이 캔버스를 거의 채우며 모서리 바깥은 투명한 PNG로 교체했다. 소스와 Debug 런타임 복사본의 SHA-256 일치를 확인했다.
-- 일반 Debug 빌드는 기존 MSVC PDB 도구 불일치 `C1902`로 실패했다. Visual Studio 개발 환경에서 이번 검증 명령에만 `/Z7`을 사용했을 때 전체 컴파일·링크 성공. 프로젝트 빌드 설정은 바꾸지 않았다.
+- 일반 Debug 빌드의 MSVC `C1902 Program database manager mismatch`와 임시 `/Z7` 산출물로 인한 PCH `C2855`를 재현했다. `Daylight`와 `tinygltf` Debug 정보를 CMake의 `Embedded`(`/Z7`)로 통일해 외부 PDB writer 의존성과 옵션 불일치를 제거했다.
+- 수정 후 Visual Studio 개발 환경에서 별도 `_CL_` 우회 없이 clean Debug 전체 28단계 컴파일·링크 성공. Debug 설정은 프로젝트 차원에서 `/Z7`로 일관된다.
 - 매 프레임 표시로 변경하기 전 Debug 실행 1280×720/FIFO 약 4초: 1초 표본 `241.32`, `240.27`, `239.70 FPS`; 평균 약 `240.43 FPS`. 정상 종료 exit code 0, 캡처된 로그에서 validation warning/error 없음.
 - Release는 전체 소스 컴파일 성공 후 기존 `/LTCG:INCREMENTAL` 링크에서 linker access violation. Release 10초 기준선은 아직 미완료이며 현재 과제를 `verified_complete`로 처리하지 않는다.
 
@@ -211,7 +216,7 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
     "status": "in_progress",
     "attempts": 0,
     "completion_evidence": {
-      "debug_build": "Visual Studio 개발 환경과 명령 한정 /Z7에서 전체 컴파일·링크 성공",
+      "debug_build": "Daylight와 tinygltf Debug를 CMake Embedded(/Z7)로 통일한 뒤 clean 전체 컴파일·링크 성공",
       "debug_run": "1280x720 FIFO, 정상 종료 code 0, FPS 241.32/240.27/239.70, 평균 약 240.43",
       "validation": "약 4초 캡처 로그에서 warning/error 없음",
       "remaining": "Release LTCG 링크 access violation 해결 후 3초 워밍업과 10초 평균 측정"

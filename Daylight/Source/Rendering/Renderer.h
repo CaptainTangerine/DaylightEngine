@@ -1,4 +1,6 @@
 #pragma once
+#include <vulkan/vulkan.h>
+
 #include "ShaderCompiler.h"
 #include "Graphics/VertexFormat.h"
 
@@ -13,6 +15,7 @@ namespace Dlight
 
 	class Renderer
 	{
+		constexpr static VkFormat depthStencilFormat = { VK_FORMAT_D32_SFLOAT_S8_UINT };
 	public:
 		Renderer(VulkanDevice& device);
 		~Renderer();
@@ -21,6 +24,13 @@ namespace Dlight
 		Renderer& operator=(const Renderer&) = delete;
 
 	public:
+		bool CreateSceneColorImage(uint32 width, uint32 height);
+		void DestroySceneColorImage();
+
+		bool CreateDepthStencilImage(uint32 width, uint32 height);
+		void DestroyDepthStencilImage();
+		void OnResize(uint32 width, uint32 height);
+
 		bool CreateTrianglePipelines();
 		bool CreateImageTestPipelines();
 
@@ -33,6 +43,12 @@ namespace Dlight
 
 	private:
 		VulkanDevice& device;
+
+		// SceneColor buffer
+		std::unique_ptr<VulkanImage> sceneColorImage = { nullptr };
+
+		// Default depthstencil buffer
+		std::unique_ptr<VulkanImage> depthStencilImage = { nullptr };
 
 		// Shader Compilier
 		ShaderCompiler shaderCompiler;
@@ -59,10 +75,10 @@ namespace Dlight
 		// 이미지를 매핑할 사각형 정점과 인덱스
 		const std::vector<VertexFormat::FTexturedVertex> imageVertices =
 		{
-			{{-0.5f, 0.5f}, {0.f, 0.f}},
-			{{-0.5f, -0.5f}, {0.f, 1.f}},
-			{{0.5f, -0.5f}, {1.f, 1.f}},
-			{{0.5f, 0.5f}, {1.f, 0.f}}
+			{{-1.f, 1.f}, {0.f, 0.f}},
+			{{-1.f, -1.f}, {0.f, 1.f}},
+			{{1.f, -1.f}, {1.f, 1.f}},
+			{{1.f, 1.f}, {1.f, 0.f}}
 		};
 		const std::vector<uint16> imageIndices =
 		{

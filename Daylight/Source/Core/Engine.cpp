@@ -6,6 +6,7 @@
 
 #include <Core/Paths.h>
 #include <Graphics/Vulkan/VulkanDevice.h>
+#include <Graphics/Vulkan/VulkanSwapchain.h>
 #include <Rendering/Renderer.h>
 #include <Utils/Image.h>
 
@@ -103,7 +104,8 @@ namespace Dlight
 
 			while (SDL_PollEvent(&event))
 			{
-				if (event.type == SDL_EVENT_QUIT)
+				if (event.type == SDL_EVENT_QUIT ||
+					event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED)
 				{
 					bRunning = false;
 					break;
@@ -128,11 +130,19 @@ namespace Dlight
 				continue;
 			}
 
-			if (!vulkanDevice->UpdateSwapchain(width, height))
+			bool swapchainRecreated = false;
+			if (!vulkanDevice->UpdateSwapchain(width, height, swapchainRecreated))
 			{
 				SDL_Delay(10);
 				ResetFrameStats();
 				continue;
+			}
+
+			if (swapchainRecreated)
+			{
+				renderer->OnResize(
+					vulkanDevice->GetSwapchain().GetWidth(),
+					vulkanDevice->GetSwapchain().GetHeight());
 			}
 
 			if (vulkanDevice->AcquireNextImage())
@@ -152,7 +162,9 @@ namespace Dlight
 
 	void Engine::ResetFrameStats()
 	{
-		previousFrameTime = FrameClock::now();
+		const auto now = FrameClock::now();
+		previousFrameTime = now;
+		logSampleStart = now;
 		deltaTime = 0.0f;
 	}
 
@@ -179,6 +191,13 @@ namespace Dlight
 
 		const std::string titleText = title.str();
 		SDL_SetWindowTitle(window, titleText.c_str());
+
+		const auto now = FrameClock::now();
+		if (now - logSampleStart >= std::chrono::seconds(1))
+		{
+			DL_LOG_INFO(titleText);
+			logSampleStart = now;
+		}
 	}
 
 	void Engine::Shutdown()

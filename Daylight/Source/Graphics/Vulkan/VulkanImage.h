@@ -5,24 +5,16 @@
 
 namespace Dlight
 {
-	struct FVulkanImageDesc
-	{
-		uint32 width = 0;
-		uint32 height = 0;
-		VkFormat format = VK_FORMAT_UNDEFINED;
-
-		VkImageUsageFlags usage = 0;
-		VmaMemoryUsage memoryUsage = VMA_MEMORY_USAGE_AUTO;
-		VmaAllocationCreateFlags allocationFlags = 0;
-	};
-
 	class VulkanDevice;
 
 	// Device Local image 생성
 	class VulkanImage
 	{
 	public:
-		VulkanImage(VulkanDevice& _device, const FVulkanImageDesc& desc);
+		VulkanImage(
+			VulkanDevice& _device,
+			const VkImageCreateInfo& imageCreateInfo,
+			const VkImageViewCreateInfo& imageViewCreateInfo);
 		~VulkanImage();
 
 	public:
