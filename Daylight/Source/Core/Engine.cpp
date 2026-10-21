@@ -2,9 +2,12 @@
 #include "Engine.h"
 
 #include <SDL3/SDL.h>
+#include <iomanip>
 
+#include <Core/Paths.h>
 #include <Graphics/Vulkan/VulkanDevice.h>
 #include <Rendering/Renderer.h>
+#include <Utils/Image.h>
 
 namespace Dlight
 {
@@ -44,6 +47,7 @@ namespace Dlight
 			std::abort();
 		}
 
+		SetWindowIcon();
 		DL_LOG_INFO("Window created: ", width, "x", height);
 
 		int pixelWidth = 0;
@@ -62,9 +66,37 @@ namespace Dlight
 		renderer = std::make_unique<Renderer>(*vulkanDevice);
 	}
 
+	void Engine::SetWindowIcon()
+	{
+		const std::filesystem::path iconPath = Paths::GetAssetPath(L"Image/Icon.png");
+		Image iconImage(iconPath.string());
+
+		SDL_Surface* iconSurface = SDL_CreateSurfaceFrom(
+			iconImage.GetWidth(),
+			iconImage.GetHeight(),
+			SDL_PIXELFORMAT_RGBA32,
+			iconImage.GetData(),
+			iconImage.GetWidth() * 4);
+
+		if (!iconSurface)
+		{
+			DL_LOG_WARN("Failed to create window icon surface: ", SDL_GetError());
+			return;
+		}
+
+		if (!SDL_SetWindowIcon(window, iconSurface))
+		{
+			DL_LOG_WARN("Failed to set window icon: ", SDL_GetError());
+		}
+
+		SDL_DestroySurface(iconSurface);
+	}
+
 	void Engine::Run()
 	{
 		bRunning = true;
+		ResetFrameStats();
+
 		while (true)
 		{
 			SDL_Event event{ 0 };
@@ -92,22 +124,61 @@ namespace Dlight
 			if ((SDL_GetWindowFlags(window) & SDL_WINDOW_MINIMIZED) || width == 0 || height == 0)
 			{
 				SDL_Delay(10);
+				ResetFrameStats();
 				continue;
 			}
 
 			if (!vulkanDevice->UpdateSwapchain(width, height))
 			{
 				SDL_Delay(10);
+				ResetFrameStats();
 				continue;
 			}
 
 			if (vulkanDevice->AcquireNextImage())
 			{
+				UpdateDeltaTime();
 				vulkanDevice->BeginFrame();
 				renderer->Render();
 				vulkanDevice->EndFrame();
+				UpdateFrameStats();
+			}
+			else
+			{
+				ResetFrameStats();
 			}
 		}
+	}
+
+	void Engine::ResetFrameStats()
+	{
+		previousFrameTime = FrameClock::now();
+		deltaTime = 0.0f;
+	}
+
+	void Engine::UpdateDeltaTime()
+	{
+		const auto now = FrameClock::now();
+		deltaTime = std::chrono::duration<float>(now - previousFrameTime).count();
+		previousFrameTime = now;
+	}
+
+	void Engine::UpdateFrameStats()
+	{
+		if (deltaTime <= 0.0f)
+		{
+			return;
+		}
+
+		const float fps = 1.0f / deltaTime;
+
+		std::ostringstream title;
+		title << std::fixed << std::setprecision(2)
+			<< "Daylight | " << fps << " FPS | "
+			<< deltaTime * 1000.0f << " ms dt";
+
+		const std::string titleText = title.str();
+		SDL_SetWindowTitle(window, titleText.c_str());
 	}
 
 	void Engine::Shutdown()

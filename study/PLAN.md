@@ -1,53 +1,74 @@
 # Vulkan Renderer · 학습 계획
 
-> 갱신: 2026-10-15 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
+> 갱신: 2026-10-21 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
 > 코드 존재, 빌드 성공, 실행/화면 검증, 이해도 확인을 서로 구분한다.
 
-## 다음 학습일의 단 하나의 핵심 과제 — 2026-10-19 (월)
+## 오늘의 단 하나의 핵심 과제 — 2026-10-21 (수)
 
-**TinyGLTF v3로 Lumine 모델을 읽고 mesh / primitive / POSITION accessor 메타데이터를 검증한다.**
-예상 2시간. 10/15 저녁 재검토에서도 glTF 로더의 완료 증거가 없어 10/19의 기존 과제를 유지한다. 컴포넌트 구조 작업은 확인했으며 glTF 실패/지연으로 환산하지 않고 attempts=0을 유지한다. GPU 업로드 과제는 추가하지 않는다.
+**현재 렌더 루프의 CPU/present FPS 기준선을 측정하고 기록한다.**
+예상 30~60분. 컴퓨트 블러는 미구현·대기 상태로 유지하고, 비교 기준이 생기기 전에는 시작하지 않는다.
 
-- 목표: 준비된 `Daylight/Asset/Lumine/lumine/scene.gltf`를 실제 프로젝트의 TinyGLTF v3 C API로 읽고 연결 정보를 로그로 확인한다.
+- 측정 정의: `std::chrono::steady_clock`으로 연속된 렌더 프레임 시작 사이의 `deltaTime`을 초 단위로 측정한다. 창 제목에는 매 프레임 `1 / deltaTime` FPS와 `deltaTime × 1000` 밀리초를 표시한다.
+- 구현 위치: 프레임 전체를 소유하는 `Engine`에 `UpdateFrameStats()`와 `ResetFrameStats()`를 둔다. `Renderer`에는 FPS 책임을 넣지 않는다.
 - 첫 20분:
-  1. 0~5분: `CMakePresets.json`, `cmake/FindTinyGLTF.cmake`, 설치된 `C:/tinygltf-3.0.1/README.md`에서 v3 API를 확인한다.
-  2. 5~10분: `tg3_parse_options_init`, `tg3_error_stack_init`, `tg3_parse_file`, 반환 오류와 모델/오류 메모리 해제 흐름을 읽는다.
-  3. 10~20분: 프로젝트 파일에서 mesh → primitive → POSITION accessor 연결을 찾고 출력할 필드와 예상값을 적는다.
+  1. 0~5분: 지표 이름을 `CPU/present loop FPS`와 `CPU/present loop ms`로 정한다. GPU 실행 시간이라고 부르지 않는다.
+  2. 5~10분: `Engine`에 이전 프레임 시각과 초 단위 `deltaTime`을 멤버로 두고, 성공적으로 획득한 프레임에서 갱신하도록 호출 위치를 표시한다.
+  3. 10~20분: 매 프레임 창 제목에 `FPS`, `deltaTime ms`, present mode(`FIFO`)를 출력하고, 최소화·0 크기·스왑체인 재생성으로 건너뛸 때 시간을 reset하는 흐름을 작성한다.
+- 측정 조건:
+  - 창 1280×720, 리사이즈·최소화·다른 코드 변경 없이 측정한다.
+  - 처음 3초는 워밍업으로 버리고 다음 10초 동안 실시간 표시값의 범위를 관찰한다.
+  - Debug는 validation 확인용, Release는 성능 기준선용으로 각각 구분한다.
+  - 현재 `VK_PRESENT_MODE_FIFO_KHR`를 유지한다. 숫자가 모니터 주사율에 제한될 수 있음을 결과에 함께 기록한다.
 - 완료 기준:
-  - 사용자가 작성한 로딩 경로를 빌드/실행하여 `TG3_OK` 및 오류 처리 결과를 확인한다.
-  - meshes=3, primitives=3, accessors=12를 실제 로더 결과로 출력한다.
-  - POSITION accessor 0/4/8의 count=28102/2919/1589, type=VEC3, componentType=5126(FLOAT)를 출력한다.
-  - primitive의 indices accessor와 componentType=5125(UNSIGNED_INT)를 확인한다.
-  - 실행 명령, 날짜, 핵심 출력 또는 실패 원인을 이 파일에 기록한다. JSON 파일을 읽은 것만으로 로더 구현 완료를 처리하지 않는다.
-- 학습 자료:
-  - [TinyGLTF v3 Quick start — 파일 파싱·오류·해제](https://github.com/syoyo/tinygltf#quick-start)
-  - [Khronos glTF Tutorial 5 — Buffers, BufferViews, Accessors](https://github.com/KhronosGroup/glTF-Tutorials/blob/main/gltfTutorial/gltfTutorial_005_BuffersBufferViewsAccessors.md)
-- 이해 확인 질문: POSITION의 accessor 번호가 bufferView 번호와 다른 이유는 무엇이며, bufferView와 accessor는 각각 무엇을 설명하는가?
-- 다음 단계: 완료가 검증된 뒤에만 첫 primitive의 CPU POSITION/indices 추출을 선정한다.
-- 실패/시간 부족 시: 첫 mesh의 primitive 1개만 읽고 POSITION 메타데이터를 출력하는 1시간 과제로 축소한다. 이전 과제 위에 새 과제를 쌓지 않는다.
+  - Debug/Release 빌드가 성공하고 FPS와 deltaTime이 창 제목에 매 프레임 표시된다.
+  - 최소화 및 resize 후 비정상적으로 낮은 표본이 누적되지 않는다.
+  - Release에서 10초 동안 관찰한 FPS와 CPU/present loop ms 범위를 기록한다.
+  - Debug validation error/warning 0을 별도로 확인한다.
+  - 이 값은 GPU pass 시간은 아니라는 한계를 기록하고, 블러 전/후 GPU 비용 비교는 timestamp query 후속 과제로 남긴다.
+- 이해 확인 질문: FIFO에서 60 FPS가 측정됐다고 해서 GPU가 한 프레임을 16.67 ms 동안 렌더링했다고 결론 내릴 수 없는 이유는 무엇인가?
+
+### 2026-10-21 구현·검증 기록
+
+- `Engine`에 초 단위 `deltaTime`과 `steady_clock` 기반 프레임 시각을 추가했다. 최소화·스왑체인 skip 때 시각을 reset한다.
+- 사용자 요청에 따라 1초 누적 표본 대신 창 제목을 매 프레임 갱신한다. 형식: `Daylight | 순간 FPS | deltaTime ms | FIFO`. 로그는 측정 왜곡과 스팸을 피하기 위해 매 프레임 출력하지 않는다.
+- `Daylight/Icon.png`를 런타임 `Assets/Image/Icon.png`로 복사하고, 창 생성 직후 `stb_image` RGBA 데이터와 `SDL_SetWindowIcon`으로 창 아이콘을 설정한다.
+- 아이콘 변경 후 Debug 재빌드 성공. 런타임 아이콘 파일 복사를 확인했고 약 2초 실행에서 아이콘 관련 경고 없이 정상 종료 code 0.
+- 사용자 피드백에 따라 원본의 넓은 검은 여백을 제거하고, 둥근 아이콘이 캔버스를 거의 채우며 모서리 바깥은 투명한 PNG로 교체했다. 소스와 Debug 런타임 복사본의 SHA-256 일치를 확인했다.
+- 일반 Debug 빌드는 기존 MSVC PDB 도구 불일치 `C1902`로 실패했다. Visual Studio 개발 환경에서 이번 검증 명령에만 `/Z7`을 사용했을 때 전체 컴파일·링크 성공. 프로젝트 빌드 설정은 바꾸지 않았다.
+- 매 프레임 표시로 변경하기 전 Debug 실행 1280×720/FIFO 약 4초: 1초 표본 `241.32`, `240.27`, `239.70 FPS`; 평균 약 `240.43 FPS`. 정상 종료 exit code 0, 캡처된 로그에서 validation warning/error 없음.
+- Release는 전체 소스 컴파일 성공 후 기존 `/LTCG:INCREMENTAL` 링크에서 linker access violation. Release 10초 기준선은 아직 미완료이며 현재 과제를 `verified_complete`로 처리하지 않는다.
 
 ## 코드와 Git에서 확인한 현재 상태
 
-기준 HEAD: `ce490eb` (2026-10-15 14:42, 컴포넌트 기반 아키텍처 설계).
-오전 기준 `4238937` 이후 커밋과 staged/unstaged diff, 미추적 파일을 읽었다. staged 변경은 없고 Scene/Component 및 Entity의 7개 파일이 미커밋 상태이며 Resources/ResourceManager.h·cpp가 미추적 상태다. Entity 타입별 컴포넌트 조회, Component 생명주기, Camera/MeshComponent 및 ResourceManager 골격을 확인했다. Renderer는 여전히 Image/Test.jpg와 하드코딩 사각형을 사용하며 애플리케이션 glTF 파싱 호출/성공 로그는 없다. 사용자 변경은 보존한다.
+기준 HEAD: `de83def` (2026-10-15 19:26, 컴포넌트 타입 ID 방식으로 변경). 2026-10-21 확인 시 원격 `origin/master`와 같았고, 검토 시작 전 작업 트리는 깨끗했다. 이번 검토는 렌더러 소스를 바꾸지 않고 이 계획만 갱신했다.
+사용자가 설명한 리소스 핸들/리소스 매니저 코드는 현재 체크아웃과 원격 브랜치에서 찾지 못했다. 별도 Git 저장소의 구현은 소스를 받기 전까지 코드 분석·완료 검증으로 기록하지 않는다. 현재 저장소에는 `VulkanResourceState`만 있다.
 
 | 기능 | 구현 상태 | 검증 상태와 근거 |
 |---|---|---|
-| SDL3 창, Vulkan 장치/스왑체인 | 코드 존재 | 기존 10/12 로그에서 창 생성 및 MX450 선택만 확인 |
-| HLSL → SPIR-V, 삼각형/텍스처 사각형 파이프라인 | 코드 존재 | 화면 출력은 커밋/기존 사용자 보고. 이번 검토에서 화면 재검증하지 않음 |
+| SDL3 창, Vulkan 장치/스왑체인 | 코드 존재 | 10/21 기존 로그에 창 생성과 RTX 4060 Ti 선택 기록. 이번 검토에서 새 실행/화면은 확인하지 않음 |
+| HLSL → SPIR-V, 삼각형/텍스처 사각형 파이프라인 | 코드 존재·빌드 성공 | DXC가 임의 프로파일을 받으므로 `cs_6_0` 경로를 재사용 가능. 현재 pipeline wrapper는 graphics 전용 |
 | 정점·인덱스 버퍼, staging 업로드 | 코드 존재 | GPU 복사와 transfer → vertex/index 의존성 있음. 현재 draw는 하드코딩 사각형 |
 | Dynamic Rendering, 깊이 attachment | 코드 존재 | `Renderer::Render`의 `vkCmdBeginRendering`/`vkCmdEndRendering`. 3D 깊이 테스트 결과 미검증 |
 | Synchronization2, timeline/바이너리 semaphore | 코드 존재 | `BeginFrame`/`EndFrame`, `vkCmdPipelineBarrier2`, `vkQueueSubmit2`, timeline wait 확인. 동기화 validation 결과 미확보 |
 | Bindless 기초 | 일부 구현 | 64개 sampled-image 배열, PARTIALLY_BOUND/UPDATE_AFTER_BIND, sampler 별도 세트. 셰이더는 `textures[0]`만 사용. 동적/비균일 인덱싱 미구현·미검증 |
-| Entity/Component/Transform/Camera/ResourceManager | 구조·일부 구현 | Mesh Render는 주석만 있고 Renderer 연결/현재 전체 빌드·행렬 검증 증거 없음 |
+| Compute blur | 미구현 | `CS_Main` 문자열만 존재. compute pipeline, storage-image descriptor, dispatch, compute 상태/배리어는 없음 |
+| Entity/Component/Transform/Camera | 구조·일부 구현 | Mesh Render는 주석만 있고 Renderer 연결/행렬 실행 검증 증거 없음 |
+| Resource handle / manager | 이 체크아웃에서 미확인 | 별도 Git 구현이라는 사용자 설명만 있으며 현재 저장소에는 해당 소스가 없음 |
 | TinyGLTF v3 라이브러리/모델 준비 | 설정·파일 확인 완료 | C11 정적 라이브러리 연결, FS 매크로, 로컬 v3 헤더 존재. 애플리케이션의 parse 호출은 없음 |
 | glTF CPU 파싱/데이터 추출 | 미구현 | Source/Shaders 검색과 Renderer 초기화 경로에서 로더 부재 확인 |
 | 정적 glTF 모델 렌더링·카메라·glTF 재질 | 미구현 | 현재 POSITION은 Vector2, 모델 행렬/카메라/모델 재질 경로 없음 |
 | PBR / Deferred / Toon | 미구현 | 후속 로드맵 단계 |
 
-**검증의 한계 (10/15 재조회):** Debug exe는 10/14 14:06, 별도 vulkan-image-verify/Daylight.exe는 10/14 14:32 산출물이다. 파일 존재/시각으로 빌드 과정이나 화면/validation 성공을 단정하지 않는다. Debug log.txt는 창/GPU 선택만 기록한다. 10/12 pipeline-check.stdout.log는 창/GPU 2줄, stderr는 비어 있다. image-fallback-check/log.txt의 fallback 경고는 별도 확인용 산출물이며 현재 Image.cpp의 abort 경로와 구분한다.
-CTest LastTest.log는 저녁 재조회에서 10/15 18:21 시작/종료만 있으며 테스트 통과 증거가 아니다. Daylight/log.txt는 기존 10/7 로그이며 glTF 파싱 성공/메타데이터 출력 증거는 찾지 못했다.
-이번 자동화는 빌드/렌더러 실행/validation 테스트를 수행하지 않았다. Git diff 부재로 학습 부재/이해도를 판단하지 않는다.
+**검증의 한계 (10/21):** `cmake --build --preset windows-debug`는 exit code 0으로 성공했지만 변경 대상이 없어 runtime 파일 복사만 수행했다. 앱 실행, 화면 캡처, validation 결과는 이번 검토에서 새로 확인하지 않았다. `out/build/windows-debug/log.txt`의 창/GPU 로그는 10:49의 기존 실행 기록이므로 오늘 컴퓨트 과제의 증거가 아니다.
+
+### 오늘 과제의 선행 조건
+
+- `VK_FORMAT_R8G8B8A8_UNORM`의 optimal tiling이 `VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT`를 지원하는지 물리 장치에서 확인한다.
+- HLSL storage image의 `rgba8` 형식과 `VK_FORMAT_R8G8B8A8_UNORM` image view를 정확히 맞춘다. 첫 과제에서는 `Texture2D.Load`를 사용해 sampler와 implicit LOD 문제를 범위에서 뺀다.
+- storage image 출력은 compute 접근 중 `VK_IMAGE_LAYOUT_GENERAL`을 사용한다.
+- 출력 이미지는 입력과 분리한다. 같은 픽셀 주변값을 읽으면서 같은 이미지를 덮어쓰는 in-place blur는 호출 간 순서가 없어 첫 과제에서 제외한다.
+- `EResourceState`에는 compute storage read/write 상태가 없으므로, `COMPUTE_SHADER` stage와 `SHADER_READ/WRITE` access 및 `GENERAL` layout을 표현할 수 있어야 한다.
+- compute dispatch는 `vkCmdBeginRendering` 밖에서 기록하고, 출력은 이후 fragment shader가 읽기 전에 배리어로 가시성을 확보한다.
 
 ### 다음 단계의 선행 조건
 
@@ -68,13 +89,13 @@ CTest LastTest.log는 저녁 재조회에서 10/15 18:21 시작/종료만 있으
 3 meshes, 3 primitives, 12 accessors, buffer 1개, bufferViews 3개, skins/animations 0개.
 이는 PowerShell JSON 조회 결과이며 TinyGLTF 실행 결과나 전체 glTF 유효성 검증 결과가 아니다.
 
-## 일정과 주간 목표 — 10/14~10/19
+## 과거 일정 기록 — 10/14~10/19
 
 Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 캘린더를 실제 조회했다.
 10/14에 사용자 정정한 **10/16(금) 외출, 10/17(토) 결혼식** 종일 일정을 10/15에도 재조회했다. 이번 실행은 개인 일정을 변경하지 않는다.
 10/18(일)은 평일 학습 패턴 밖의 휴식일이다.
 
-- 현재 핵심 목표: 모델 파싱 메타데이터를 실제 로더 로그로 검증한다. 완료 증거가 없어 10/19에도 이 과제 하나만 유지한다. CPU 전체 추출/모델 출력은 대기한다.
+- 당시 핵심 목표: 모델 파싱 메타데이터를 실제 로더 로그로 검증하는 것이었다. 완료 증거는 없으며 10/21 사용자 우선순위 변경으로 대기열에 둔다.
 - 10/15: 오늘 과제가 미완료이면 같은 과제를 축소/재배치한다. 완료 증거가 있으면 첫 primitive의 CPU 추출 하나만 선정한다.
 - 10/16~18: 개발 과제 없음. 미완료 작업은 10/19에 재평가하며 3일 분량을 누적하지 않는다.
 - 10/15 오전 실제 실행: 다음 학습일 10/19 전체 날짜를 네 캘린더에서 조회했다. 예약 시각 19:00에 시작했다고 주장하지 않는다. 이후 리뷰는 최신 진도/일정을 재평가한다.
@@ -86,6 +107,7 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 
 ## 짧은 복습 노트 — 이해도는 아직 평가하지 않음
 
+- **Compute / storage image:** workgroup과 invocation, `ceil(size / local_size)` dispatch, storage image의 `GENERAL` layout, compute write → fragment sampled read 배리어를 연결해 설명한다.
 - **동기화:** transfer write → vertex/index read 또는 fragment sampled read 의존성을 현재 `ConvertResourceState`와 연결해 설명한다. `vkQueueWaitIdle`과 메모리 배리어가 담당하는 역할을 구분한다.
 - **프레임 동기화:** image-acquired/프레젠트 완료 바이너리 semaphore와 CPU 프레임 재사용을 제한하는 timeline semaphore를 구분한다.
 - **Bindless:** 배열 64개를 만들고 slot 0을 읽는 단계와 런타임/비균일 인덱싱은 다르다. PARTIALLY_BOUND는 실제 접근한 미초기화 descriptor를 유효하게 만들지 않는다.
@@ -96,15 +118,17 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 
 | 순서 | 마일스톤 | 검증 가능한 완료 기준 | 상태 |
 |---|---|---|---|
-| 0 | 기존 이미지 출력 기준선 | 새 Debug 실행 화면, 정상 종료, resize/minimize, validation 결과 기록 | 코드 있음·재검증 필요 |
-| 1 | glTF 파싱 | 실제 TinyGLTF 로그가 위 메타데이터와 일치 | 현재 활성 과제 |
-| 2 | 첫 primitive CPU 추출 | 위치/인덱스 개수·범위·stride·샘플 값 확인 | 대기 |
-| 3 | 정적 glTF 출력 | 3D 위치/적절한 인덱스 업로드, 고정 MVP·깊이로 단색 모델 출력 | 대기 |
-| 4 | 카메라/노드/전체 모델 | 좌표계와 노드 변환 검증, orbit 및 전체 primitives 출력 | 대기 |
-| 5 | glTF 텍스처·재질 | UV/baseColor·sampler 연결, 여러 재질 인덱스 검증 | 대기 |
-| 6 | PBR | metallic/roughness와 normal, 직접광 결과를 기준 모델과 비교 | 대기 |
-| 7 | Deferred Rendering | G-Buffer 위치/normal/material 시각화, lighting pass·의존성 검증 | 대기 |
-| 8 | Toon Shading | 명암 단계화 후 윤곽선 효과를 각각 비교 검증 | 대기 |
+| 0 | FPS 기준선 | CPU/present 순간 FPS와 deltaTime을 매 프레임 표시하고 Release 관찰 범위·조건을 기록 | **현재 활성 과제** |
+| 1 | 기존 이미지 출력 기준선 | 새 Debug 실행 화면, 정상 종료, resize/minimize, validation 결과 기록 | 코드 있음·재검증 필요 |
+| 2 | Compute blur 1-pass | dispatch·storage image·compute→fragment 배리어 후 블러 화면과 validation 0 | 대기 |
+| 3 | glTF 파싱 | 실제 TinyGLTF 로그가 위 메타데이터와 일치 | 미완료·대기 |
+| 4 | 첫 primitive CPU 추출 | 위치/인덱스 개수·범위·stride·샘플 값 확인 | 대기 |
+| 5 | 정적 glTF 출력 | 3D 위치/적절한 인덱스 업로드, 고정 MVP·깊이로 단색 모델 출력 | 대기 |
+| 6 | 카메라/노드/전체 모델 | 좌표계와 노드 변환 검증, orbit 및 전체 primitives 출력 | 대기 |
+| 7 | glTF 텍스처·재질 | UV/baseColor·sampler 연결, 여러 재질 인덱스 검증 | 대기 |
+| 8 | PBR | metallic/roughness와 normal, 직접광 결과를 기준 모델과 비교 | 대기 |
+| 9 | Deferred Rendering | G-Buffer 위치/normal/material 시각화, lighting pass·의존성 검증 | 대기 |
+| 10 | Toon Shading | 명암 단계화 후 윤곽선 효과를 각각 비교 검증 | 대기 |
 
 후속 자료: [Khronos glTF Tutorial 9 — Meshes](https://github.com/KhronosGroup/glTF-Tutorials/blob/main/gltfTutorial/gltfTutorial_009_Meshes.md),
 [Vulkan Tutorial — Vertex input description](https://docs.vulkan.org/tutorial/latest/04_Vertex_buffers/00_Vertex_input_description.html),
@@ -183,70 +207,47 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 ```json
 {
   "current_task": {
-    "id": "gltf-v3-metadata",
-    "status": "pending",
+    "id": "baseline-cpu-present-fps",
+    "status": "in_progress",
     "attempts": 0,
-    "completion_evidence": null,
-    "title": "TinyGLTF v3 모델 파싱과 Accessor 메타데이터 검증",
-    "goal": "준비된 Lumine scene.gltf를 실제 v3 API로 읽고 mesh/primitive/POSITION 연결 정보를 확인한다.",
+    "completion_evidence": {
+      "debug_build": "Visual Studio 개발 환경과 명령 한정 /Z7에서 전체 컴파일·링크 성공",
+      "debug_run": "1280x720 FIFO, 정상 종료 code 0, FPS 241.32/240.27/239.70, 평균 약 240.43",
+      "validation": "약 4초 캡처 로그에서 warning/error 없음",
+      "remaining": "Release LTCG 링크 access violation 해결 후 3초 워밍업과 10초 평균 측정"
+    },
+    "title": "현재 렌더 루프 FPS 기준선 측정",
+    "goal": "블러 구현 전에 현재 루프의 CPU/present 순간 FPS와 deltaTime을 동일 조건에서 매 프레임 표시하고 기준 범위를 기록한다.",
     "first_20_minutes": [
-      "CMake와 로컬 tiny_gltf_v3.h에서 현재 v3 연결과 파싱/오류/해제 API를 확인한다.",
-      "scene.gltf에서 mesh → primitive → POSITION accessor 관계와 예상 필드를 찾는다."
+      "지표를 CPU/present loop FPS와 ms로 정의하고 GPU 실행 시간과 구분한다.",
+      "Engine에 steady_clock 이전 프레임 시각과 초 단위 deltaTime을 두고 성공적으로 획득한 프레임에서 갱신하는 흐름을 설계한다.",
+      "매 프레임 창 제목을 갱신하며 최소화와 스왑체인 skip 때 이전 시각을 reset하도록 설계한다."
     ],
     "done": [
-      "실제 프로젝트 로더가 TG3_OK를 반환하며 mesh=3, primitive=3, accessor=12를 출력한다.",
-      "POSITION accessor 0/4/8의 count=28102/2919/1589, VEC3/FLOAT와 indices의 UNSIGNED_INT를 확인한다.",
-      "실행 명령과 핵심 로그 또는 실패 원인을 PLAN.md에 남긴다."
+      "Debug와 Release 빌드가 성공하고 순간 FPS와 deltaTime이 매 프레임 표시된다.",
+      "1280x720 FIFO에서 3초 워밍업 뒤 Release 10초 관찰 범위와 대표값을 기록한다.",
+      "Debug validation error/warning 0을 별도로 확인하고 FIFO 제한 및 GPU 시간 미측정이라는 한계를 기록한다."
     ],
-    "sources": [
+    "question": "FIFO에서 측정한 60 FPS를 GPU 렌더링 시간 16.67 ms로 해석할 수 없는 이유는 무엇인가?",
+    "next": "CPU/present 기준선 완료 뒤 compute blur를 구현하며, 세부 GPU 비용 비교가 필요하면 timestamp query를 추가한다.",
+    "duration_minutes": 60,
+    "minimum_minutes": 30,
+    "short_session_goal": "순간 FPS와 deltaTime ms를 매 프레임 창 제목에 표시하고 Release 관찰 범위를 기록한다.",
+    "deferred_tasks": [
       {
-        "title": "TinyGLTF v3 Quick start — 파싱/오류/해제",
-        "url": "https://github.com/syoyo/tinygltf#quick-start"
+        "id": "compute-blur-first-dispatch",
+        "status": "pending",
+        "completion_evidence": null,
+        "reason": "블러 전 FPS 기준선 측정을 먼저 수행"
       },
       {
-        "title": "Khronos glTF Tutorial 5 — Buffers, BufferViews, Accessors",
-        "url": "https://github.com/KhronosGroup/glTF-Tutorials/blob/main/gltfTutorial/gltfTutorial_005_BuffersBufferViewsAccessors.md"
+        "id": "gltf-v3-metadata",
+        "status": "pending",
+        "completion_evidence": null,
+        "reason": "10/21 사용자 우선순위가 compute shader 학습으로 변경되어 대기"
       }
     ],
-    "question": "BufferView와 Accessor는 각각 무엇을 설명하며 POSITION accessor 번호와 bufferView 번호가 다른 이유는 무엇인가?",
-    "next": "실제 파싱 완료를 검증한 뒤 첫 primitive의 CPU 위치/인덱스 데이터를 추출한다.",
-    "duration_minutes": 120,
-    "minimum_minutes": 60,
-    "short_session_goal": "첫 mesh의 primitive 하나만 파싱하고 POSITION count/type/componentType과 오류 처리를 검증한다.",
-    "reduced": {
-      "title": "첫 primitive의 POSITION 메타데이터 로딩 검증",
-      "goal": "첫 mesh의 primitive 하나로 범위를 줄여 v3 파싱과 POSITION 연결을 검증한다.",
-      "first_20_minutes": [
-        "이전 실패 로그를 읽고 파싱 경로와 오류 처리만 확인한다.",
-        "첫 POSITION accessor 0의 예상 count=28102와 VEC3/FLOAT를 적는다."
-      ],
-      "done": [
-        "TG3_OK 및 첫 POSITION accessor의 count/type/componentType을 실제 로더에서 출력한다.",
-        "실행 결과/막힌 원인을 PLAN.md에 기록한다."
-      ],
-      "sources": [
-        {
-          "title": "TinyGLTF v3 Quick start",
-          "url": "https://github.com/syoyo/tinygltf#quick-start"
-        },
-        {
-          "title": "Khronos glTF Tutorial 5",
-          "url": "https://github.com/KhronosGroup/glTF-Tutorials/blob/main/gltfTutorial/gltfTutorial_005_BuffersBufferViewsAccessors.md"
-        }
-      ],
-      "question": "첫 POSITION accessor는 어느 bufferView를 참조하는가?",
-      "next": "성공한 범위부터 나머지 primitive 검증 또는 CPU 추출을 재평가한다.",
-      "duration_minutes": 60,
-      "minimum_minutes": 60,
-      "short_session_goal": "이 과제 전체가 최소 검증 단위이다."
-    },
-    "calendar_title": "glTF 모델 읽기 · 메타데이터 검증",
-    "calendar_brief": {
-      "goal": "TinyGLTF v3로 Lumine 모델의 mesh/primitive/POSITION 정보를 실제 로더로 확인한다.",
-      "first_step": "0~10분: 로컬 v3 파싱·오류·해제 API 확인. 10~20분: mesh → primitive → POSITION 예상값 정리.",
-      "done": "TG3_OK, mesh=3·primitive=3·accessor=12, POSITION 0/4/8의 count=28102/2919/1589·VEC3/FLOAT 및 indices UNSIGNED_INT를 출력하고 실행 명령·로그 기록."
-    },
-    "planned_date": "2026-10-19"
+    "planned_date": "2026-10-21"
   }
 }
 ```
@@ -264,31 +265,10 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 <!-- calendar-draft:start -->
 ## Calendar 등록 초안
 
-- 대상 학습일: 2026-10-19
-- 모드: ready_for_connector · 동작: update
-- 시간: 2026-10-19T10:00:00+09:00 ~ 2026-10-19T12:00:00+09:00
-
-오늘의 목표: TinyGLTF v3로 Lumine 모델의 mesh/primitive/POSITION 정보를 실제 로더로 확인한다.
-
-첫 20분 행동: 0~10분: 로컬 v3 파싱·오류·해제 API 확인. 10~20분: mesh → primitive → POSITION 예상값 정리.
-
-완료 기준: TG3_OK, mesh=3·primitive=3·accessor=12, POSITION 0/4/8의 count=28102/2919/1589·VEC3/FLOAT 및 indices UNSIGNED_INT를 출력하고 실행 명령·로그 기록.
-
-학습 자료
-TinyGLTF v3 Quick start — 파싱/오류/해제
-https://github.com/syoyo/tinygltf#quick-start
-Khronos glTF Tutorial 5 — Buffers, BufferViews, Accessors
-https://github.com/KhronosGroup/glTF-Tutorials/blob/main/gltfTutorial/gltfTutorial_005_BuffersBufferViewsAccessors.md
-
-이해 확인 질문
-BufferView와 Accessor는 각각 무엇을 설명하며 POSITION accessor 번호와 bufferView 번호가 다른 이유는 무엇인가?
-
-다음 단계
-실제 파싱 완료를 검증한 뒤 첫 primitive의 CPU 위치/인덱스 데이터를 추출한다.
-
-[DaylightEngine-study:v1:2026-10-19:vulkan]
-
---- 자동 계획 끝 ---
+- 대상 학습일: 2026-10-21
+- 모드: not_requested · 동작: 없음
+- 사유: 이번 대화에서는 오늘의 기술 과제만 재선정했으며 Calendar 변경은 요청받지 않았다.
+- 활성 과제: 현재 렌더 루프의 CPU/present FPS 기준선 측정
 
 
 <!-- calendar-draft:end -->

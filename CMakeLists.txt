@@ -137,6 +137,10 @@ add_custom_target(DaylightRuntimeFiles
         "${CMAKE_CURRENT_SOURCE_DIR}/Daylight/Asset/Image"
         "$<TARGET_FILE_DIR:Daylight>/Assets/Image"
 
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/Daylight/Icon.png"
+        "$<TARGET_FILE_DIR:Daylight>/Assets/Image/Icon.png"
+
     COMMENT "실행에 필요한 DLL, 셰이더 및 이미지 복사"
     VERBATIM
 )
