@@ -1,31 +1,45 @@
 # Vulkan Renderer · 학습 계획
 
-> 갱신: 2026-10-21 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
-> 코드 존재, 빌드 성공, 실행/화면 검증, 이해도 확인을 서로 구분한다.
+> 갱신: 2026-10-22 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
+> 코드 존재, 과거 작업 보고, 현재 빌드/실행·validation 증거를 구분한다.
 
-## 오늘의 단 하나의 핵심 과제 — 2026-10-21 (수)
+## 다음 학습일의 단 하나의 핵심 과제 — 2026-10-23 (금)
 
-**현재 렌더 루프의 CPU/present FPS 기준선을 측정하고 기록한다.**
-예상 30~60분. 컴퓨트 블러는 미구현·대기 상태로 유지하고, 비교 기준이 생기기 전에는 시작하지 않는다.
+**FPS 기준선 재개 · 병합 후 Debug 루프 검증.** 예상 60분. 기존 `baseline-cpu-present-fps`의 선행 검증 범위로 줄이며 Release 측정은 후속으로 남긴다.
 
-- 측정 정의: `std::chrono::steady_clock`으로 연속된 렌더 프레임 시작 사이의 `deltaTime`을 초 단위로 측정한다. 창 제목에는 매 프레임 `1 / deltaTime` FPS와 `deltaTime × 1000` 밀리초를 표시한다.
-- 구현 위치: 프레임 전체를 소유하는 `Engine`에 `UpdateFrameStats()`와 `ResetFrameStats()`를 둔다. `Renderer`에는 FPS 책임을 넣지 않는다.
-- 첫 20분:
-  1. 0~5분: 지표 이름을 `CPU/present loop FPS`와 `CPU/present loop ms`로 정한다. GPU 실행 시간이라고 부르지 않는다.
-  2. 5~10분: `Engine`에 이전 프레임 시각과 초 단위 `deltaTime`을 멤버로 두고, 성공적으로 획득한 프레임에서 갱신하도록 호출 위치를 표시한다.
-  3. 10~20분: 매 프레임 창 제목에 `FPS`, `deltaTime ms`, present mode(`FIFO`)를 출력하고, 최소화·0 크기·스왑체인 재생성으로 건너뛸 때 시간을 reset하는 흐름을 작성한다.
-- 측정 조건:
-  - 창 1280×720, 리사이즈·최소화·다른 코드 변경 없이 측정한다.
-  - 처음 3초는 워밍업으로 버리고 다음 10초 동안 실시간 표시값의 범위를 관찰한다.
-  - Debug는 validation 확인용, Release는 성능 기준선용으로 각각 구분한다.
-  - 현재 `VK_PRESENT_MODE_FIFO_KHR`를 유지한다. 숫자가 모니터 주사율에 제한될 수 있음을 결과에 함께 기록한다.
-- 완료 기준:
-  - Debug/Release 빌드가 성공하고 FPS와 deltaTime이 창 제목에 매 프레임 표시된다.
-  - 최소화 및 resize 후 비정상적으로 낮은 표본이 누적되지 않는다.
-  - Release에서 10초 동안 관찰한 FPS와 CPU/present loop ms 범위를 기록한다.
-  - Debug validation error/warning 0을 별도로 확인한다.
-  - 이 값은 GPU pass 시간은 아니라는 한계를 기록하고, 블러 전/후 GPU 비용 비교는 timestamp query 후속 과제로 남긴다.
-- 이해 확인 질문: FIFO에서 60 FPS가 측정됐다고 해서 GPU가 한 프레임을 16.67 ms 동안 렌더링했다고 결론 내릴 수 없는 이유는 무엇인가?
+- 목표: 현재 병합된 소스에서 기존 이미지 출력과 Engine의 CPU/present FPS 루프를 Debug로 검증한다.
+- 첫 20분: 0~10분 Renderer.h/.cpp·VulkanDevice.cpp의 Resource 소유·graphics/compute 타입 대조. 10~20분 Engine FPS/reset 흐름과 Debug 검증 명령·조건 정리.
+- 이번 세션 완료 기준: 사용자가 Debug 빌드 결과, 이미지/FPS·deltaTime, resize/minimize, X 버튼 정상 종료, validation warning/error 수를 기록한다. 실패 시 첫 오류·재현 명령·다음 한 수를 남기고 미완료 유지.
+- 전체 과제 완료 기준: Release 링크 성공 및 1280×720/FIFO에서 3초 워밍업 후 10초 관찰 범위·조건·한계 기록까지 실제 증거 확보. 현재 in_progress/attempts=0 유지.
+- 자료: [Khronos Resource Management — Handles/Manager](https://docs.vulkan.org/tutorial/latest/Building_a_Simple_Engine/Engine_Architecture/04_resource_management.html), [VkPresentModeKHR — FIFO](https://docs.vulkan.org/refpages/latest/refpages/source/VkPresentModeKHR.html).
+- 이해 질문: FIFO에서 측정한 60 FPS를 GPU 렌더링 시간 16.67 ms로 해석할 수 없는 이유는 무엇인가?
+- 다음 단계: Debug 검증 뒤 같은 FPS 과제의 Release 링크/10초 관찰만 재평가한다. 새 compute/glTF 과제를 쌓지 않는다.
+
+### 10/22 자동 검토의 증거와 제약
+
+- 검토 시작 HEAD c5374ca, staged 변경 및 소스 3개/PLAN의 병합 충돌을 확인했다. 검토 도중 외부 수정으로 소스 마커가 제거되고 PLAN이 갱신되어 재조회·병합했다. 당시 Git index는 unmerged였으나 최종 재조회 HEAD는 1088318(10:24 병합 커밋)로 바뀌었다. 이는 외부 작업이며 자동화는 소스·Git 상태를 변경하지 않았다.
+- Engine FPS/reset 코드, Resource 래퍼, graphics/compute 파이프라인/descriptor 준비 코드 존재를 읽었다. 현재 Debug 바이너리와 창/GPU 로그는 10/19이며 CTest는 시작/끝만 있다. 이 자동화는 빌드/렌더러/테스트를 실행하지 않았다.
+- 아래 10/21 Debug/FPS 수치는 과거 작업 보고로 보존하며 현재 병합 결과나 이 PC의 실행 성공으로 전용하지 않는다. 현재 병합 결과의 Debug 검증 및 Release 관찰은 미완료다.
+- 초기 충돌 원본/양쪽 버전 및 외부 병합 후 PLAN은 runtime/2026-10-22-PLAN-*.md에 보존했다. 최신 사용자 문서와 변경 사항을 유지하고 활성 과제/JSON만 재계획했다.
+- 선형대수: 오늘 10/22는 10/14 anchor +8일로 14:00~14:30 대상. 내일 10/23은 +9일로 비대상. Blender는 오늘·내일 가능한 20:00~20:30. Vulkan은 다음 평일 하나만 등록한다.
+- 개념 이해는 개인 노트 5~10줄로 기록하며 블로그 발행을 강제하지 않는다. 구현·빌드·실행의 수행자는 사용자다.
+- Calendar 실제 처리 결과: 아래 네 일정의 read_event/receipt와 중복·충돌 재조회를 통과했다.
+
+### 이번 실행의 실제 Calendar 검증 — 2026-10-22 오전
+
+| 날짜 | 시간(Asia/Seoul) | 실제 등록 내용 | 이벤트 ID |
+|---|---|---|---|
+| 10/22 목 | 14:00~14:30 | 선형대수 현재 진도 확인·개념 복습(+8일) | `ikm0pn0nma5660vqhcji2dcnbg` |
+| 10/22 목 | 20:00~20:30 | Blender 현재 단계 30분 | `jbjuiaf650200jk7rrb5bvap90` |
+| 10/23 금 | 10:00~11:00 | Vulkan FPS 기준선 재개·병합 후 Debug 검증 | `jbfdadd92mcbjpovds40rj4k7c` |
+| 10/23 금 | 20:00~20:30 | Blender 현재 단계 30분 | `k1lpbqhhkmta5tc4j2f6412ag8` |
+
+- 생성 4개 각각 read_event의 confirmed/ID/제목/시간/marker 및 planner receipt를 통과해 registry에 저장했다. 최종 네 캘린더 전체 날짜 재조회에서 marker별 1개, 충돌 0, 전체 설명 일치를 확인했다(연결 도구의 공백/Markdown 구분선 변환 정규화). 개인 이벤트 변경/삭제는 없다.
+- 10/22 Vulkan 초안은 다음 평일 핵심 하나 원칙에 따라 defer 처리해 생성하지 않았다. 10/23 선형대수는 격일 비대상이며 누적하지 않는다. 네 등록 초안은 최종 재생성 시 동일 ID update·시간 필드 없음으로 바뀌어 중복 방지를 확인했고 추가 갱신 호출은 하지 않았다.
+- 목표·첫 20분·완료 기준·공식 자료 2개·이해 질문·다음 단계는 Vulkan 설명에 포함했다. 사용자 이동 시간/설명 끝 이후 메모는 향후에도 보존한다.
+- 상세 보고: `study/automation/runtime/2026-10-22-review-result.json`. 이번 오전 실행은 매일 19:00 예약 트리거 성공의 근거가 아니다.
+
+
 
 ### 2026-10-21 구현·검증 기록
 
@@ -218,7 +232,7 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 별도의 명시적인 코드 작업 요청 전에는 소스·셰이더·CMake를 수정하거나 빌드/렌더러를 실행하지 않는다.
 기존 기능은 유지하고 Bindless 확장은 후순위로 둔다. 이전 glTF 메타데이터 과제는 미완료 상태로 보류하며 실패 횟수를 늘리지 않는다.
 
-## 다음 학습일의 단 하나의 핵심 과제 — 2026-10-20 (화)
+## 당시 10/20 과제 — 이전 설계 이력
 
 **Renderer와 ResourceManager의 책임·소유권을 현재 코드에 맞춰 설계한다.** 예상 2시간.
 이번 과제는 설계 노트 작성이며 실제 구현은 설계 확인 뒤 사용자가 작은 단위로 진행한다.
@@ -256,7 +270,7 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 - 10/19(월) 10:00~12:00의 기존 Vulkan 이벤트를 **엔진 구조 · 책임과 리소스 소유권 설계**로 실제 수정했다.
 - 기존 ID `1ufg1ljbcle9d22pdoq77tmqf0`와 시간은 보존했다. 목표·첫 20분·완료 기준·공식 자료 2개·이해 질문·다음 단계를 새 과제로 바꿨다.
 - 수정 후 read_event와 planner receipt를 통과했고 최종 검색에서 고유 marker별 1개를 확인했다. Blender 20:00~20:30 및 개인 일정은 변경하지 않았다.
-- 이전 glTF 제목의 등록 기록과 아래 저녁 자동화 기록은 **방향 변경 전 이력**이다. 현재 활성 과제/로드맵/current_task와 이 기록이 최신 기준이다.
+- 이전 glTF 제목의 등록 기록과 아래 저녁 자동화 기록은 **방향 변경 전 이력**이다. 당시 활성 과제 기준이며 현재 상태는 맨 위 10/22 계획과 current_task를 따른다.
 - 소스 변경은 원복 완료. 향후 학습·일정 요청으로 소스 수정/빌드/렌더러 실행을 하지 않는다.
 
 ### 설계 시 구분할 현재 책임과 소유권
@@ -304,25 +318,25 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
       "debug_build": "Daylight와 tinygltf Debug를 CMake Embedded(/Z7)로 통일한 뒤 clean 전체 컴파일·링크 성공",
       "debug_run": "1280x720 FIFO, 정상 종료 code 0, FPS 241.32/240.27/239.70, 평균 약 240.43",
       "validation": "약 4초 캡처 로그에서 warning/error 없음",
-      "remaining": "Release LTCG 링크 access violation 해결 후 3초 워밍업과 10초 평균 측정"
+      "remaining": "현재 병합 결과 Debug 빌드/실행 재검증 및 Release 링크 성공 후 3초 워밍업+10초 관찰 범위 기록",
+      "scope": "10/21 PLAN의 과거 작업 보고. 현재 병합 결과의 성공 증거로 재검증하지 못함."
     },
-    "title": "현재 렌더 루프 FPS 기준선 측정",
-    "goal": "블러 구현 전에 현재 루프의 CPU/present 순간 FPS와 deltaTime을 동일 조건에서 매 프레임 표시하고 기준 범위를 기록한다.",
+    "title": "FPS 기준선 재개 · 병합 후 Debug 루프 검증",
+    "goal": "현재 병합된 리소스 경로와 Engine FPS 루프를 확인하고 Debug에서 기존 이미지 출력·FPS/reset·정상 종료를 검증한다. 기존 FPS 과제의 선행 검증 한 세션으로 줄인다.",
     "first_20_minutes": [
-      "지표를 CPU/present loop FPS와 ms로 정의하고 GPU 실행 시간과 구분한다.",
-      "Engine에 steady_clock 이전 프레임 시각과 초 단위 deltaTime을 두고 성공적으로 획득한 프레임에서 갱신하는 흐름을 설계한다.",
-      "매 프레임 창 제목을 갱신하며 최소화와 스왑체인 skip 때 이전 시각을 reset하도록 설계한다."
+      "0~10분: 병합된 Renderer.h/.cpp·VulkanDevice.cpp의 Resource 소유·graphics/compute 타입을 대조하고 남은 마커/선언 불일치를 확인한다.",
+      "10~20분: Engine UpdateDeltaTime/ResetFrameStats 흐름을 읽고 Debug 검증 명령·화면 조건·관찰 항목을 적는다."
     ],
     "done": [
-      "Debug와 Release 빌드가 성공하고 순간 FPS와 deltaTime이 매 프레임 표시된다.",
-      "1280x720 FIFO에서 3초 워밍업 뒤 Release 10초 관찰 범위와 대표값을 기록한다.",
-      "Debug validation error/warning 0을 별도로 확인하고 FIFO 제한 및 GPU 시간 미측정이라는 한계를 기록한다."
+      "사용자가 병합된 현재 소스의 Debug 빌드 명령·종료 코드·첫 오류 또는 성공 로그를 기록한다.",
+      "빌드 성공 시 기존 이미지/FPS·deltaTime 표시, resize/minimize, X 버튼 정상 종료와 validation warning/error 수를 실제 기록한다.",
+      "실패하면 재현 명령·첫 오류·다음 한 수를 남기고 미완료 유지. Release 기준선 전체 완료로 간주하지 않는다."
     ],
     "question": "FIFO에서 측정한 60 FPS를 GPU 렌더링 시간 16.67 ms로 해석할 수 없는 이유는 무엇인가?",
-    "next": "CPU/present 기준선 완료 뒤 compute blur를 구현하며, 세부 GPU 비용 비교가 필요하면 timestamp query를 추가한다.",
+    "next": "Debug 복구 증거 뒤 동일 FPS 과제의 Release 링크와 1280x720/FIFO 3초 워밍업+10초 관찰을 재평가한다. compute dispatch는 이후에 진행한다.",
     "duration_minutes": 60,
-    "minimum_minutes": 30,
-    "short_session_goal": "순간 FPS와 deltaTime ms를 매 프레임 창 제목에 표시하고 Release 관찰 범위를 기록한다.",
+    "minimum_minutes": 60,
+    "short_session_goal": "Debug 첫 빌드 결과와 가능한 실행 검증까지만 남긴다.",
     "deferred_tasks": [
       {
         "id": "compute-blur-first-dispatch",
@@ -335,9 +349,37 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
         "status": "pending",
         "completion_evidence": null,
         "reason": "10/21 사용자 우선순위가 compute shader 학습으로 변경되어 대기"
+      },
+      {
+        "id": "engine-resource-ownership-design",
+        "status": "deferred",
+        "attempts": 0,
+        "completion_evidence": null,
+        "reason": "10/21 FPS 우선순위 반영. 설계 노트의 완료 증거는 없음."
       }
     ],
-    "planned_date": "2026-10-21"
+    "planned_date": "2026-10-23",
+    "sources": [
+      {
+        "title": "Khronos Resource Management — Handles / Basic Resource Manager",
+        "url": "https://docs.vulkan.org/tutorial/latest/Building_a_Simple_Engine/Engine_Architecture/04_resource_management.html"
+      },
+      {
+        "title": "Khronos VkPresentModeKHR — FIFO",
+        "url": "https://docs.vulkan.org/refpages/latest/refpages/source/VkPresentModeKHR.html"
+      }
+    ],
+    "calendar_title": "FPS 기준선 재개 · 병합 후 Debug 검증",
+    "calendar_brief": {
+      "goal": "병합된 현재 소스에서 기존 이미지 출력과 CPU/present FPS 루프를 Debug로 검증한다.",
+      "first_step": "0~10분: Resource 소유·graphics/compute 타입 대조. 10~20분: Engine FPS/reset 흐름과 Debug 검증 조건 정리.",
+      "done": "사용자가 Debug 빌드 결과와 이미지/FPS·resize/minimize·정상 종료·validation 수 기록. 실패 시 첫 오류를 남기고 미완료 유지."
+    },
+    "historical_full_done": [
+      "Debug/Release 빌드 성공",
+      "Release 1280x720/FIFO 3초 워밍업 뒤 10초 관찰 범위",
+      "Debug validation 수·CPU/present 한계 기록"
+    ]
   }
 }
 ```
@@ -355,10 +397,31 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 <!-- calendar-draft:start -->
 ## Calendar 등록 초안
 
-- 대상 학습일: 2026-10-21
-- 모드: not_requested · 동작: 없음
-- 사유: 이번 대화에서는 오늘의 기술 과제만 재선정했으며 Calendar 변경은 요청받지 않았다.
-- 활성 과제: 현재 렌더 루프의 CPU/present FPS 기준선 측정
+- 대상 학습일: 2026-10-23
+- 모드: ready_for_connector · 동작: update
+- 시간: 2026-10-23T10:00:00+09:00 ~ 2026-10-23T11:00:00+09:00
+
+오늘의 목표: 병합된 현재 소스에서 기존 이미지 출력과 CPU/present FPS 루프를 Debug로 검증한다.
+
+첫 20분 행동: 0~10분: Resource 소유·graphics/compute 타입 대조. 10~20분: Engine FPS/reset 흐름과 Debug 검증 조건 정리.
+
+완료 기준: 사용자가 Debug 빌드 결과와 이미지/FPS·resize/minimize·정상 종료·validation 수 기록. 실패 시 첫 오류를 남기고 미완료 유지.
+
+학습 자료
+Khronos Resource Management — Handles / Basic Resource Manager
+https://docs.vulkan.org/tutorial/latest/Building_a_Simple_Engine/Engine_Architecture/04_resource_management.html
+Khronos VkPresentModeKHR — FIFO
+https://docs.vulkan.org/refpages/latest/refpages/source/VkPresentModeKHR.html
+
+이해 확인 질문
+FIFO에서 측정한 60 FPS를 GPU 렌더링 시간 16.67 ms로 해석할 수 없는 이유는 무엇인가?
+
+다음 단계
+Debug 복구 증거 뒤 동일 FPS 과제의 Release 링크와 1280x720/FIFO 3초 워밍업+10초 관찰을 재평가한다. compute dispatch는 이후에 진행한다.
+
+[DaylightEngine-study:v1:2026-10-23:vulkan]
+
+--- 자동 계획 끝 ---
 
 
 <!-- calendar-draft:end -->
