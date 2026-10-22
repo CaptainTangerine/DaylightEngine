@@ -13,6 +13,6 @@ void CS_Main(uint3 dispatchThreadID : SV_DispatchThreadID)
     }
     
     uint2 pixel = dispatchThreadID.xy;
-    float color = SceneColor.Load(int3(pixel, 0));
+    float4 color = SceneColor.Load(int3(pixel, 0));
     ComputeOutput[pixel] = color;
 }

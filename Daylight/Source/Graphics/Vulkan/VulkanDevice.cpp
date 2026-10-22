@@ -834,7 +834,10 @@ namespace Dlight
 
 			const auto& props = queueFamilyProps[curFamilyIndex];
 
-			if ((props.queueFamilyProperties.queueFlags & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)) && bHasPresentSupport)
+			const VkQueueFlags queueFlags = props.queueFamilyProperties.queueFlags;
+			if ((queueFlags & VK_QUEUE_GRAPHICS_BIT) &&
+				(queueFlags & VK_QUEUE_COMPUTE_BIT) &&
+				bHasPresentSupport)
 			{
 				gfxAndComputeQueueFamilyIndex = curFamilyIndex;
 				return true;

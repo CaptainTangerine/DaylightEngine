@@ -43,7 +43,7 @@ namespace Dlight
             return loaded; 
         }
 
-        void UnLoad()
+        void Unload()
         {
             DoUnload();
             loaded = false;

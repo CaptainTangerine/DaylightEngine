@@ -13,10 +13,10 @@ namespace Dlight
 		template<typename T, typename... Args>
 		ResourceHandle<T> LoadResource(const std::string& id, Args&& ...args)
 		{
-			static_assert(std::is_base_of_v(Resource, T), "T Must derive from Resource");
+			static_assert(std::is_base_of_v<Resource, T>, "T Must derive from Resource");
 
-			auto& typeResources = resources[std::type_index(typdid(T))];
-			auto iter = typeResources[id];
+			auto& typeResources = resources[std::type_index(typeid(T))];
+			auto iter = typeResources.find(id);
 
 			if (iter != typeResources.end())
 			{
@@ -24,7 +24,7 @@ namespace Dlight
 			}
 
 			std::shared_ptr<T> resource(new T(id, std::forward<Args>(args)...)
-				, [](T* r) { r->Unload(); delete r; });
+				, [](T* r) { r->UnLoad(); delete r; });
 
 			if (!resource->Load())
 			{
@@ -39,7 +39,7 @@ namespace Dlight
 		template<typename T>
 		bool UnloadResource(const std::string& id)
 		{
-			static_assert(std::is_base_of_v(Resource, T), "T Must drive from Resource");
+			static_assert(std::is_base_of_v<Resource, T>, "T Must drive from Resource");
 			
 			auto& typeResources = resources[std::type_index(typeid(T))];
 			auto iter = typeResources.find(id);
@@ -54,13 +54,13 @@ namespace Dlight
 		template<typename T>
 		ResourceHandle<T> GetResource(const std::string& id)
 		{
-			static_assert(std::is_base_of_v(Resource, T), "T Must drive from Resource");
+			static_assert(std::is_base_of_v<Resource, T>, "T Must drive from Resource");
 			auto& typeResources = resources[std::type_index(typeid(T))];
 			auto iter = typeResources.find(id);
 			
 			if (iter != typeResources.end())
 			{
-				ResourceHandle<T>(std::static_pointer_cast<T>(iter->second));
+				return ResourceHandle<T>(std::static_pointer_cast<T>(iter->second));
 			}
 
 			return ResourceHandle<T>();
@@ -69,13 +69,13 @@ namespace Dlight
 		template<typename T>
 		bool HasResource(const std::string& id)
 		{
-			static_assert(std::is_base_of_v(Resource, T), "T Must drive from Resource");
+			static_assert(std::is_base_of_v<Resource, T>, "T Must drive from Resource");
 			auto& typeResources = resources[std::type_index(typeid(T))];
 			auto iter = typeResources.find(id);
 
 			if (iter != typeResources.end())
 			{
-				return typeResources.contains(id);
+				return true;
 			}
 
 			return false;

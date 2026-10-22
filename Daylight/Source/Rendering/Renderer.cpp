@@ -32,7 +32,7 @@ namespace Dlight
 		const uint32 width = device.GetSwapchain().GetWidth();
 		const uint32 height = device.GetSwapchain().GetHeight();
 
-		if (!CreateSceneColorImage(width, height))
+		if (!CreateSceneColorImages(width, height))
 		{
 			DL_LOG_ERROR("Failed to create scene-color resources");
 			std::abort();
@@ -128,9 +128,8 @@ namespace Dlight
 
 		// Blur
 		CreateBlurPipeline();
-
 		CreateComputeDescriptorSets();
-		// Compute images are not created yet; update descriptors when those resources are ready.
+		UpdateComputeDescriptorSets();
 	}
 
 	void Renderer::Shutdown()
@@ -146,12 +145,12 @@ namespace Dlight
 		testTexture.reset();
 
 		DestroyDepthStencilImages();
-		DestroySceneColorImage();
+		DestroySceneColorImages();
 	}
 
-	bool Renderer::CreateSceneColorImage(uint32 width, uint32 height)
+	bool Renderer::CreateSceneColorImages(uint32 width, uint32 height)
 	{
-		DestroySceneColorImage();
+		DestroySceneColorImages();
 
 		VkImageCreateInfo imageInfo{};
 		imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -166,6 +165,9 @@ namespace Dlight
 		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
+		VkImageCreateInfo computeOutputImageInfo = imageInfo;
+		computeOutputImageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+
 		VkImageViewCreateInfo imageViewInfo{};
 		imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -176,13 +178,21 @@ namespace Dlight
 		imageViewInfo.subresourceRange.baseArrayLayer = 0;
 		imageViewInfo.subresourceRange.layerCount = 1;
 
-		sceneColorImage = std::make_unique<VulkanImage>(device, imageInfo, imageViewInfo);
+		sceneColorImages.reserve(VulkanDevice::MaxFramesInFlight);
+		computeOutputImages.reserve(VulkanDevice::MaxFramesInFlight);
+		for (uint32 frameSlot = 0; frameSlot < VulkanDevice::MaxFramesInFlight; ++frameSlot)
+		{
+			sceneColorImages.push_back(std::make_unique<VulkanImage>(device, imageInfo, imageViewInfo));
+			computeOutputImages.push_back(std::make_unique<VulkanImage>(device, computeOutputImageInfo, imageViewInfo));
+		}
+
 		return true;
 	}
 
-	void Renderer::DestroySceneColorImage()
+	void Renderer::DestroySceneColorImages()
 	{
-		sceneColorImage.reset();
+		sceneColorImages.clear();
+		computeOutputImages.clear();
 	}
 
 	bool Renderer::CreateDepthStencilImages(uint32 width, uint32 height)
@@ -244,7 +254,7 @@ namespace Dlight
 			return;
 		}
 
-		if (!CreateSceneColorImage(width, height))
+		if (!CreateSceneColorImages(width, height))
 		{
 			DL_LOG_ERROR("Failed to recreate scene-color resources");
 			std::abort();
@@ -255,6 +265,8 @@ namespace Dlight
 			DL_LOG_ERROR("Failed to recreate depth-stencil resources");
 			std::abort();
 		}
+
+		UpdateComputeDescriptorSets();
 	}
 
 	bool Renderer::CreateTrianglePipelines()
@@ -426,7 +438,7 @@ namespace Dlight
 
 		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-		layoutInfo.bindingCount = bindings.size();
+		layoutInfo.bindingCount = static_cast<uint32>(bindings.size());
 		layoutInfo.pBindings = bindings.data();
 
 
@@ -448,8 +460,6 @@ namespace Dlight
 
 	bool Renderer::CreateComputeDescriptorSets()
 	{
-		sceneColorImages.resize(VulkanDevice::MaxFramesInFlight);
-		computeOutputImages.resize(VulkanDevice::MaxFramesInFlight);
 		computeDescriptorSets.resize(VulkanDevice::MaxFramesInFlight);
 
 		// DescriptorPool 
@@ -560,15 +570,10 @@ namespace Dlight
 		}
 	}
 
-	void Renderer::BeginSceneRendering(VkCommandBuffer commandBuffer)
+	void Renderer::TransitionScenePassAttachments(VkCommandBuffer commandBuffer)
 	{
 		const FFrameResource& frameResource = device.GetCurrentFrameResource();
 		VulkanImage& depthStencilImage = *depthStencilImages[frameResource.frameSlot];
-
-		const VkExtent2D extent = {
-			sceneColorImage->GetWidth(),
-			sceneColorImage->GetHeight()
-		};
 
 		std::array<VkImageMemoryBarrier2, 2> layoutBarriers{};
 
@@ -579,13 +584,14 @@ namespace Dlight
 		layoutBarriers[0].dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
 		layoutBarriers[0].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		layoutBarriers[0].newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		layoutBarriers[0].image = sceneColorImage->GetImage();
+		layoutBarriers[0].image = sceneColorImages[frameResource.frameSlot]->GetImage();
 		layoutBarriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		layoutBarriers[0].subresourceRange.baseMipLevel = 0;
 		layoutBarriers[0].subresourceRange.levelCount = 1;
 		layoutBarriers[0].subresourceRange.baseArrayLayer = 0;
 		layoutBarriers[0].subresourceRange.layerCount = 1;
 
+		// DepthStencil
 		layoutBarriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 		layoutBarriers[1].srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
 		layoutBarriers[1].srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
@@ -605,10 +611,22 @@ namespace Dlight
 		dependencyInfo.imageMemoryBarrierCount = static_cast<uint32>(layoutBarriers.size());
 		dependencyInfo.pImageMemoryBarriers = layoutBarriers.data();
 		vkCmdPipelineBarrier2(commandBuffer, &dependencyInfo);
+	}
+
+	void Renderer::ScenePass(VkCommandBuffer commandBuffer)
+	{
+		const FFrameResource& frameResource = device.GetCurrentFrameResource();
+		VulkanImage& depthStencilImage = *depthStencilImages[frameResource.frameSlot];
+		const VkExtent2D extent = {
+			sceneColorImages[frameResource.frameSlot]->GetWidth(),
+			sceneColorImages[frameResource.frameSlot]->GetHeight()
+		};
+
+		TransitionScenePassAttachments(commandBuffer);
 
 		VkRenderingAttachmentInfo colorAttachmentInfo = {};
 		colorAttachmentInfo.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-		colorAttachmentInfo.imageView = sceneColorImage->GetImageView();
+		colorAttachmentInfo.imageView = sceneColorImages[frameResource.frameSlot]->GetImageView();
 		colorAttachmentInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		colorAttachmentInfo.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		colorAttachmentInfo.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -634,48 +652,173 @@ namespace Dlight
 
 		vkCmdBeginRendering(commandBuffer, &renderingInfo);
 
+		VkViewport viewport = {};
+		viewport.x = 0;
+		viewport.y = static_cast<float>(extent.height);
+		viewport.width = static_cast<float>(extent.width);
+		// 다렉 좌표계를 따르고 마지막 뷰포트시 음수로 하여서 vulkan 좌표계와 일치
+		viewport.height = -static_cast<float>(extent.height);
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+		vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+
+		VkRect2D scissor = {};
+		scissor.offset.x = 0;
+		scissor.offset.y = 0;
+		scissor.extent = extent;
+		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
+
+		VkDescriptorSet sets[2] =
+		{
+			device.GetBindlessSet(),
+			device.GetSamplerSet()
+		};
+
+		vkCmdBindDescriptorSets(
+			commandBuffer,
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			imageTestPipeline->GetPipelineLayout(),
+			0,
+			2,
+			sets,
+			0,
+			nullptr);
+
+		//vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipeline->GetPipeline());
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imageTestPipeline->GetPipeline());
+
+		const VkBuffer vertexBuffer = imageMesh->GetVertexBuffer()->GetBuffer();
+		const VkDeviceSize offset = 0;
+
+		vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &offset);
+		vkCmdBindIndexBuffer(commandBuffer, imageMesh->GetIndexBuffer()->GetBuffer(), 0, imageMesh->GetIndexType());
+		vkCmdDrawIndexed(commandBuffer, imageMesh->GetIndexCount(), 1, 0, 0, 0);
+
+		vkCmdEndRendering(commandBuffer);
+	}
+
+	void Renderer::TransitionComputePassImages(VkCommandBuffer commandBuffer)
+	{
+		VkImageMemoryBarrier2 sceneColorBarrier = {};
+		FFrameResource& resource = device.GetCurrentFrameResource();
+
+		sceneColorBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		sceneColorBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;;
+		sceneColorBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		sceneColorBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+		sceneColorBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+		sceneColorBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		sceneColorBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		sceneColorBarrier.image = sceneColorImages[resource.frameSlot]->GetImage();
+		sceneColorBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		sceneColorBarrier.subresourceRange.baseMipLevel = 0;
+		sceneColorBarrier.subresourceRange.levelCount = 1;
+		sceneColorBarrier.subresourceRange.baseArrayLayer = 0;
+		sceneColorBarrier.subresourceRange.layerCount = 1;
+
+		VkDependencyInfo sceneDepInfo = {};
+		sceneDepInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		sceneDepInfo.imageMemoryBarrierCount = 1;
+		sceneDepInfo.pImageMemoryBarriers = &sceneColorBarrier;
+		vkCmdPipelineBarrier2(commandBuffer, &sceneDepInfo);
+
+		VkImageMemoryBarrier2 computeOutputBarrier = {};
+
+		computeOutputBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		computeOutputBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+		computeOutputBarrier.srcAccessMask = VK_ACCESS_2_NONE;
+		computeOutputBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+		computeOutputBarrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+		computeOutputBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		computeOutputBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL; 
+		computeOutputBarrier.image = computeOutputImages[resource.frameSlot]->GetImage();
+		computeOutputBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		computeOutputBarrier.subresourceRange.baseMipLevel = 0;
+		computeOutputBarrier.subresourceRange.levelCount = 1;
+		computeOutputBarrier.subresourceRange.baseArrayLayer = 0;
+		computeOutputBarrier.subresourceRange.layerCount = 1;
+
+		VkDependencyInfo computeDepInfo = {};
+		computeDepInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		computeDepInfo.imageMemoryBarrierCount = 1;
+		computeDepInfo.pImageMemoryBarriers = &computeOutputBarrier;
+		vkCmdPipelineBarrier2(commandBuffer, &computeDepInfo);
+
+	}
+
+	void Renderer::BlurPass(VkCommandBuffer commandBuffer)
+	{
+		const FFrameResource& frameResource = device.GetCurrentFrameResource();
+
+		// SceneColor -> ComputeOutput 이미지 레이아웃 전환 
+		TransitionComputePassImages(commandBuffer);
+
+
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, blurPipeline->GetPipeline());
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, blurPipeline->GetPipelineLayout(), 0, 1, &computeDescriptorSets[frameResource.frameSlot], 0, nullptr);
+
+		constexpr uint32 threadGroupSizeX = 8;
+		constexpr uint32 threadGroupSizeY = 8;
+
+		const uint32 groupCountX = (device.GetSwapchain().GetWidth() + threadGroupSizeX - 1) / threadGroupSizeX;
+		const uint32 groupCountY = (device.GetSwapchain().GetHeight() + threadGroupSizeY - 1) / threadGroupSizeY;
+
+		vkCmdDispatch(commandBuffer, groupCountX, groupCountY, 1);
+	}
+
+	void Renderer::TransitionPresentPassImages(VkCommandBuffer commandBuffer)
+	{
+		const FFrameResource& frameResource = device.GetCurrentFrameResource();
+
+		VkImageMemoryBarrier2 barrier = {};
+		 barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		 barrier.srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+		 barrier.srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+		 barrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		 barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+		 barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+		 barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+		 barrier.image = computeOutputImages[frameResource.frameSlot]->GetImage();
+		 barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		 barrier.subresourceRange.baseMipLevel = 0;
+		 barrier.subresourceRange.levelCount = 1;
+		 barrier.subresourceRange.baseArrayLayer = 0;
+		 barrier.subresourceRange.layerCount = 1;
+
+		VkDependencyInfo depInfo = {};
+		depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		depInfo.imageMemoryBarrierCount = 1;
+		depInfo.pImageMemoryBarriers = &barrier;
+		vkCmdPipelineBarrier2(commandBuffer, &depInfo);
 	}
 
 	void Renderer::CopyToPresentImage(VkCommandBuffer commandBuffer, VkImage finalImage)
 	{
+		const FFrameResource& frameResource = device.GetCurrentFrameResource();
+
 		VkImage presentImage = device.GetCurrentSwapchainImage();
 
-		std::array<VkImageMemoryBarrier2, 2> barriers{};
-		
-		// 최종 이미지 배리어
-		barriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-		barriers[0].srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-		barriers[0].srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-		barriers[0].dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
-		barriers[0].dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
-		barriers[0].oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		barriers[0].newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-		barriers[0].image = finalImage;
-		barriers[0].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		barriers[0].subresourceRange.baseMipLevel = 0;
-		barriers[0].subresourceRange.levelCount = 1;
-		barriers[0].subresourceRange.baseArrayLayer = 0;
-		barriers[0].subresourceRange.layerCount = 1;
+		VkImageMemoryBarrier2 barrier = {};
 		
 		// 스왑체인 이미지 배리어 
-		barriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-		barriers[1].srcStageMask = VK_PIPELINE_STAGE_2_NONE;
-		barriers[1].srcAccessMask = VK_ACCESS_2_NONE;
-		barriers[1].dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
-		barriers[1].dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
-		barriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		barriers[1].newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-		barriers[1].image = presentImage;
-		barriers[1].subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		barriers[1].subresourceRange.baseMipLevel = 0;
-		barriers[1].subresourceRange.levelCount = 1;
-		barriers[1].subresourceRange.baseArrayLayer = 0;
-		barriers[1].subresourceRange.layerCount = 1;
+		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		barrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+		barrier.srcAccessMask = VK_ACCESS_2_NONE;
+		barrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+		barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+		barrier.image = presentImage;
+		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		barrier.subresourceRange.baseMipLevel = 0;
+		barrier.subresourceRange.levelCount = 1;
+		barrier.subresourceRange.baseArrayLayer = 0;
+		barrier.subresourceRange.layerCount = 1;
 
 		VkDependencyInfo depInfo = {};
 		depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-		depInfo.imageMemoryBarrierCount = static_cast<uint32>(barriers.size());;
-		depInfo.pImageMemoryBarriers = barriers.data();
+		depInfo.imageMemoryBarrierCount = 1;
+		depInfo.pImageMemoryBarriers = &barrier;
 
 		vkCmdPipelineBarrier2(commandBuffer, &depInfo);
 
@@ -687,8 +830,8 @@ namespace Dlight
 		copyRegion.dstSubresource.layerCount = 1;
 
 		copyRegion.extent = {
-			sceneColorImage->GetWidth(),
-			sceneColorImage->GetHeight(),
+			sceneColorImages[frameResource.frameSlot]->GetWidth(),
+			sceneColorImages[frameResource.frameSlot]->GetHeight(),
 			1
 		};
 		vkCmdCopyImage(commandBuffer, finalImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, presentImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
@@ -696,63 +839,15 @@ namespace Dlight
 
 	void Renderer::Render()
 	{
-		const VkCommandBuffer commandBuffer = device.GetCurrentFrameResource().commandBuffer;
-		const VkExtent2D extent = {
-			sceneColorImage->GetWidth(),
-			sceneColorImage->GetHeight()
-		};
+		const FFrameResource& frameResource = device.GetCurrentFrameResource();
+		const VkCommandBuffer commandBuffer = frameResource.commandBuffer;
 
-		BeginSceneRendering(commandBuffer);
+		ScenePass(commandBuffer);
+		BlurPass(commandBuffer);
 
-		{
-			VkViewport viewport = {};
-			viewport.x = 0;
-			viewport.y = static_cast<float>(extent.height);
-			viewport.width = static_cast<float>(extent.width);
-			// 다렉 좌표계를 따르고 마지막 뷰포트시 음수로 하여서 vulkan 좌표계와 일치
-			viewport.height = -static_cast<float>(extent.height);
-			viewport.minDepth = 0.0f;
-			viewport.maxDepth = 1.0f;
-			vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-			VkRect2D scissor = {};
-			scissor.offset.x = 0;
-			scissor.offset.y = 0;
-			scissor.extent = extent;
-			vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
-
-			VkDescriptorSet sets[2] =
-			{
-				device.GetBindlessSet(),
-				device.GetSamplerSet()
-			};
-
-			vkCmdBindDescriptorSets(
-				commandBuffer,
-				VK_PIPELINE_BIND_POINT_GRAPHICS,
-				imageTestPipeline->GetPipelineLayout(),
-				0,
-				2,
-				sets,
-				0,
-				nullptr);
-
-			//vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, trianglePipeline->GetPipeline());
-			vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, imageTestPipeline->GetPipeline());
-
-
-			const VkBuffer vertexBuffer = imageMesh->GetVertexBuffer()->GetBuffer();
-			const VkDeviceSize offset = 0;
-			
-			vkCmdBindVertexBuffers(commandBuffer, 0, 1, &vertexBuffer, &offset);
-			vkCmdBindIndexBuffer(commandBuffer, imageMesh->GetIndexBuffer()->GetBuffer(), 0, imageMesh->GetIndexType());
-			vkCmdDrawIndexed(commandBuffer, imageMesh->GetIndexCount(), 1, 0, 0, 0);
-
-
-		}
-		vkCmdEndRendering(commandBuffer);
-
-		const VkImage finalImage = sceneColorImage->GetImage();
+		// Present
+		const VkImage finalImage = computeOutputImages[frameResource.frameSlot]->GetImage();
+		TransitionPresentPassImages(commandBuffer);
 		// finalImage를 스왑체인 이미지로 변경
 		CopyToPresentImage(commandBuffer, finalImage);
 	}

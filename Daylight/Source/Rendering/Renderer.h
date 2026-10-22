@@ -26,8 +26,8 @@ namespace Dlight
 		Renderer& operator=(const Renderer&) = delete;
 
 	public:
-		bool CreateSceneColorImage(uint32 width, uint32 height);
-		void DestroySceneColorImage();
+		bool CreateSceneColorImages(uint32 width, uint32 height);
+		void DestroySceneColorImages();
 
 		bool CreateDepthStencilImages(uint32 width, uint32 height);
 		void DestroyDepthStencilImages();
@@ -50,15 +50,23 @@ namespace Dlight
 		void Initialize();
 		void Shutdown();
 
-		void BeginSceneRendering(VkCommandBuffer commandBuffer);
+		void TransitionScenePassAttachments(VkCommandBuffer commandBuffer);
+		void ScenePass(VkCommandBuffer commandBuffer);
+
+		void TransitionComputePassImages(VkCommandBuffer commandBuffer);
+		void BlurPass(VkCommandBuffer commandBuffer);
 		
+		void TransitionPresentPassImages(VkCommandBuffer commandBuffer);
 		void CopyToPresentImage(VkCommandBuffer commandBuffer, VkImage finalImage);
 
 	private:
 		VulkanDevice& device;
 
 		// SceneColor Image
-		std::unique_ptr<VulkanImage> sceneColorImage = { nullptr };
+		std::vector<std::unique_ptr<VulkanImage>> sceneColorImages;
+
+		// ComputeOuput Image
+		std::vector<std::unique_ptr<VulkanImage>> computeOutputImages;
 
 		// Default depth-stencil images
 		std::vector<std::unique_ptr<VulkanImage>> depthStencilImages;
@@ -115,9 +123,5 @@ namespace Dlight
 		VkDescriptorSetLayout computeDescriptorSetLayout = { VK_NULL_HANDLE } ;
 		VkDescriptorPool computeDescriptorPool = { VK_NULL_HANDLE };
 		std::vector<VkDescriptorSet> computeDescriptorSets;
-
-		std::vector<std::unique_ptr<VulkanImage>> sceneColorImages;
-		std::vector<std::unique_ptr<VulkanImage>> computeOutputImages;
-
 	};
 }
