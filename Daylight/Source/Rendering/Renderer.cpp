@@ -166,7 +166,7 @@ namespace Dlight
 		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 		VkImageCreateInfo computeOutputImageInfo = imageInfo;
-		computeOutputImageInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+		computeOutputImageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
 		computeOutputImageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
 		VkImageViewCreateInfo imageViewInfo{};
