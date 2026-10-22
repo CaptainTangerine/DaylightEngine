@@ -166,6 +166,7 @@ namespace Dlight
 		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 
 		VkImageCreateInfo computeOutputImageInfo = imageInfo;
+		computeOutputImageInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
 		computeOutputImageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
 		VkImageViewCreateInfo imageViewInfo{};
@@ -178,12 +179,15 @@ namespace Dlight
 		imageViewInfo.subresourceRange.baseArrayLayer = 0;
 		imageViewInfo.subresourceRange.layerCount = 1;
 
+		VkImageViewCreateInfo computeOutputImageViewInfo = imageViewInfo;
+		computeOutputImageViewInfo.format = computeOutputImageInfo.format;
+
 		sceneColorImages.reserve(VulkanDevice::MaxFramesInFlight);
 		computeOutputImages.reserve(VulkanDevice::MaxFramesInFlight);
 		for (uint32 frameSlot = 0; frameSlot < VulkanDevice::MaxFramesInFlight; ++frameSlot)
 		{
 			sceneColorImages.push_back(std::make_unique<VulkanImage>(device, imageInfo, imageViewInfo));
-			computeOutputImages.push_back(std::make_unique<VulkanImage>(device, computeOutputImageInfo, imageViewInfo));
+			computeOutputImages.push_back(std::make_unique<VulkanImage>(device, computeOutputImageInfo, computeOutputImageViewInfo));
 		}
 
 		return true;
@@ -774,7 +778,7 @@ namespace Dlight
 		 barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 		 barrier.srcStageMask = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
 		 barrier.srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
-		 barrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		 barrier.dstStageMask = VK_PIPELINE_STAGE_2_BLIT_BIT;
 		 barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
 		 barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
 		 barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
@@ -804,7 +808,7 @@ namespace Dlight
 		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
 		barrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
 		barrier.srcAccessMask = VK_ACCESS_2_NONE;
-		barrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		barrier.dstStageMask = VK_PIPELINE_STAGE_2_BLIT_BIT;
 		barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 		barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -822,19 +826,29 @@ namespace Dlight
 
 		vkCmdPipelineBarrier2(commandBuffer, &depInfo);
 
-		VkImageCopy copyRegion{};
-		copyRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		copyRegion.srcSubresource.layerCount = 1;
+		const int32 sourceWidth = static_cast<int32>(computeOutputImages[frameResource.frameSlot]->GetWidth());
+		const int32 sourceHeight = static_cast<int32>(computeOutputImages[frameResource.frameSlot]->GetHeight());
+		const int32 destinationWidth = static_cast<int32>(device.GetSwapchain().GetWidth());
+		const int32 destinationHeight = static_cast<int32>(device.GetSwapchain().GetHeight());
 
-		copyRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		copyRegion.dstSubresource.layerCount = 1;
+		VkImageBlit blitRegion{};
+		blitRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		blitRegion.srcSubresource.layerCount = 1;
+		blitRegion.srcOffsets[1] = { sourceWidth, sourceHeight, 1 };
 
-		copyRegion.extent = {
-			sceneColorImages[frameResource.frameSlot]->GetWidth(),
-			sceneColorImages[frameResource.frameSlot]->GetHeight(),
-			1
-		};
-		vkCmdCopyImage(commandBuffer, finalImage, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, presentImage, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copyRegion);
+		blitRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		blitRegion.dstSubresource.layerCount = 1;
+		blitRegion.dstOffsets[1] = { destinationWidth, destinationHeight, 1 };
+
+		vkCmdBlitImage(
+			commandBuffer,
+			finalImage,
+			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			presentImage,
+			VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+			1,
+			&blitRegion,
+			VK_FILTER_NEAREST);
 	}
 
 	void Renderer::Render()

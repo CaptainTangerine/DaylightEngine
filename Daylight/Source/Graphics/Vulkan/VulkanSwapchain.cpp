@@ -97,10 +97,15 @@ namespace Dlight
 
 		// 스왑체인 생성
 		VkSwapchainCreateInfoKHR swapchainCreateInfo{};
+		uint32 imageCount = std::max(3u, surfaceCaps.minImageCount);
+		if (surfaceCaps.maxImageCount > 0)
+		{
+			imageCount = std::min(imageCount, surfaceCaps.maxImageCount);
+		}
 
 		swapchainCreateInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
 		swapchainCreateInfo.surface = device.GetSurface();
-		swapchainCreateInfo.minImageCount = surfaceCaps.minImageCount;
+		swapchainCreateInfo.minImageCount = imageCount;
 		swapchainCreateInfo.imageFormat = swapchainFormat;
 		swapchainCreateInfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
 		swapchainCreateInfo.imageExtent = imageExtent;
@@ -117,7 +122,7 @@ namespace Dlight
 		}
 
 		// 실제 스왑체인이 관리하는 이미지 개수 가져오기
-		uint32 imageCount = 0;
+		imageCount = 0;
 		vkGetSwapchainImagesKHR(device.GetDevice(), swapchain, &imageCount, nullptr);
 		swapchainImages.resize(imageCount);
 		vkGetSwapchainImagesKHR(device.GetDevice(), swapchain, &imageCount, swapchainImages.data());

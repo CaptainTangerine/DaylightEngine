@@ -1,4 +1,5 @@
 Texture2D<float4> SceneColor;
+[[vk::image_format("rgba16f")]]
 RWTexture2D<float4> ComputeOutput;
 
 [numthreads(8,8,1)]

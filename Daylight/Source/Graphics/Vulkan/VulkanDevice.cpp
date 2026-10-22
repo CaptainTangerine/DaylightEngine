@@ -161,7 +161,7 @@ namespace Dlight
 
 		VkImageMemoryBarrier2 presentLayoutBarrier = {};
 		presentLayoutBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-		presentLayoutBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		presentLayoutBarrier.srcStageMask = VK_PIPELINE_STAGE_2_BLIT_BIT;
 		presentLayoutBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 		presentLayoutBarrier.dstStageMask = VK_PIPELINE_STAGE_NONE;
 		presentLayoutBarrier.dstAccessMask = 0;
@@ -194,7 +194,7 @@ namespace Dlight
 		VkSemaphoreSubmitInfo imageAquireWaitInfo = {};
 		imageAquireWaitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
 		imageAquireWaitInfo.semaphore = res.imageAcquiredSemaphore;
-		imageAquireWaitInfo.stageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		imageAquireWaitInfo.stageMask = VK_PIPELINE_STAGE_2_BLIT_BIT;
 
 		std::vector<VkSemaphoreSubmitInfo> semaphoreSignals;
 		semaphoreSignals.resize(2);
