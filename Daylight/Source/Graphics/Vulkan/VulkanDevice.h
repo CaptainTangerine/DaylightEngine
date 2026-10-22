@@ -5,6 +5,7 @@
 #include <vma/vk_mem_alloc.h>
 
 #include "VulkanResourceState.h"
+#include "VulkanSwapchain.h"
 
 struct SDL_Window;
 
@@ -16,26 +17,17 @@ namespace Dlight
 
 	struct FFrameResource
 	{
+		uint32 frameSlot = { 0 };
 		VkCommandPool commandPool = { nullptr };
 		VkCommandBuffer commandBuffer = { nullptr };
 		VkSemaphore imageAcquiredSemaphore = { nullptr };
 	};
 
-	struct FRenderFrameContext
-	{
-		VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
-
-		VkImageView colorImageView = VK_NULL_HANDLE;
-		VkImageView depthStencilImageView = VK_NULL_HANDLE;
-		VkExtent2D extent{};
-	};
-
 	class VulkanDevice
 	{
+	public:
 		constexpr static uint32   vulkanVersion = { VK_API_VERSION_1_4 };
 		constexpr static uint32   MaxFramesInFlight = { 2 };
-
-		constexpr static VkFormat depthStencilFormat = { VK_FORMAT_D32_SFLOAT_S8_UINT };
 
 	public:
 		VulkanDevice(SDL_Window* window, uint32 width, uint32 height);
@@ -46,16 +38,14 @@ namespace Dlight
 		VkPhysicalDevice GetPhysicalDevice() const { return physicalDevice; }
 		VkDevice GetDevice() const { return device; }
 		VkQueue GetGraphicsQueue() const { return gfxQueue; }
-		uint32 GetGraphicsQueueFamilyIndex() const { return gfxQueueFamilyIndex; }
+		uint32 GetGraphicsAndComputeQueueFamilyIndex() const { return gfxAndComputeQueueFamilyIndex; }
 		VkSurfaceKHR GetSurface() const { return vulkanSurface; }
 		VmaAllocator GetVmaAllocator() const { return vmaAllocator;  }
 		VulkanSwapchain& GetSwapchain() { return *swapchain; }
 		const VulkanSwapchain& GetSwapchain() const { return *swapchain; }
-		VkFormat GetDepthStencilFormat() const { return depthStencilFormat; }
-		VkImage GetDepthStencilImage() const { return depthStencilImage; }
-		VkImageView GetDepthStencilImageView() const { return depthStencilImageView; }
-
-		FRenderFrameContext GetCurrentRenderFrameContext() const;
+		FFrameResource& GetCurrentFrameResource() { return frameResources[frameIndex % MaxFramesInFlight]; }
+		const FFrameResource& GetCurrentFrameResource() const { return frameResources[frameIndex % MaxFramesInFlight]; }
+		const VkImage GetCurrentSwapchainImage() const { return swapchain->GetSwapchianImage(imageIndex); };
 
 		VkDescriptorSetLayout GetBindlessLayout() const { return bindlessLayout; }
 		VkDescriptorSet GetBindlessSet() const { return bindlessSet; }
@@ -66,7 +56,7 @@ namespace Dlight
 		// 현재 사용가능한 이미지인덱스를 PresentEngine에서 가져온다.
 		bool AcquireNextImage();
 		// false이면 재생성이 보류되었으므로 이번 프레임을 건너뛴다.
-		bool UpdateSwapchain(uint32 width, uint32 height);
+		bool UpdateSwapchain(uint32 width, uint32 height, bool& recreated);
 
 		void BeginFrame();
 		void EndFrame();
@@ -81,9 +71,6 @@ namespace Dlight
 		void TransitionBuffer(VkCommandBuffer commandBuffer, const VulkanBuffer& buffer, EResourceState _src, EResourceState _dst);
 
 	private:
-		FFrameResource& GetCurrentFrameResource() { return frameResources[frameIndex % MaxFramesInFlight]; }
-		const FFrameResource& GetCurrentFrameResource() const { return frameResources[frameIndex % MaxFramesInFlight]; }
-
 		void Initialize(SDL_Window* window, uint32 width, uint32 height);
 		void Shutdown();
 
@@ -95,8 +82,6 @@ namespace Dlight
 		bool InitializeVMA();
 		bool CreateSyncResources();
 		bool CreateCommandBuffers();
-		bool CreateDepthStencilResources();
-		void DestroyDepthStencilResources();
 
 		bool CreateBindlessDescriptors();
 		bool CreateSamplerDescriptors();
@@ -121,7 +106,7 @@ namespace Dlight
 		VkDevice device = { VK_NULL_HANDLE };
 
 		// Queue Related
-		uint32 gfxQueueFamilyIndex = { UINT32_MAX } ;
+		uint32 gfxAndComputeQueueFamilyIndex = { UINT32_MAX } ;
 		VkQueue gfxQueue = { VK_NULL_HANDLE };
 
 		// Vulkan Memory Allocater
@@ -131,11 +116,6 @@ namespace Dlight
 		std::unique_ptr<VulkanSwapchain> swapchain;
 		bool bRequireRecreateSwapchain = { false };
 		uint32 imageIndex = { 0 };
-
-		// Default depthstencil buffer
-		VkImage depthStencilImage = VK_NULL_HANDLE;
-		VkImageView depthStencilImageView = VK_NULL_HANDLE;
-		VmaAllocation depthStencilImageAllocation = nullptr;
 
 		// Frame and synchroniztion resources
 		VkSemaphore timelineSemaphore = { nullptr };

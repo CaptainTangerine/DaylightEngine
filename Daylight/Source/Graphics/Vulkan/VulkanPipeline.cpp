@@ -2,18 +2,18 @@
 #include "VulkanPipeline.h"
 #include "Graphics/Vulkan/VulkanDevice.h"
 
-Dlight::VulkanPipeline::VulkanPipeline(VulkanDevice& _device, const FGfxPipelineDesc& desc)
+Dlight::VulkanGraphicsPipeline::VulkanGraphicsPipeline(VulkanDevice& _device, const FGraphicsPipelineDesc& desc)
 	: device(_device)
 {
 	Initialize(desc);
 }
 
-Dlight::VulkanPipeline::~VulkanPipeline()
+Dlight::VulkanGraphicsPipeline::~VulkanGraphicsPipeline()
 {
 	Shutdown();
 }
 
-void Dlight::VulkanPipeline::Initialize(const FGfxPipelineDesc& desc)
+void Dlight::VulkanGraphicsPipeline::Initialize(const FGraphicsPipelineDesc& desc)
 {
 	// vkPipelineLayout
 	// 디스크립터나 push Constants 정보 
@@ -144,7 +144,62 @@ void Dlight::VulkanPipeline::Initialize(const FGfxPipelineDesc& desc)
 	}
 }
 
-void Dlight::VulkanPipeline::Shutdown()
+void Dlight::VulkanGraphicsPipeline::Shutdown()
+{
+	if (pipeline)
+	{
+		vkDestroyPipeline(device.GetDevice(), pipeline, nullptr);
+	}
+
+	if (pipelineLayout)
+	{
+		vkDestroyPipelineLayout(device.GetDevice(), pipelineLayout, nullptr);
+	}
+}
+
+Dlight::VulkanComputePipeline::VulkanComputePipeline(VulkanDevice& _device, const FComputePipelineDesc& desc)
+	: device(_device)
+{
+	Initialize(desc);
+}
+
+Dlight::VulkanComputePipeline::~VulkanComputePipeline()
+{
+	Shutdown();
+}
+
+void Dlight::VulkanComputePipeline::Initialize(const FComputePipelineDesc& desc)
+{
+	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipelineLayoutInfo.setLayoutCount = static_cast<uint32>(desc.descriptorSetLayouts.size());
+	pipelineLayoutInfo.pSetLayouts = desc.descriptorSetLayouts.empty() ? nullptr : desc.descriptorSetLayouts.data();
+
+	if (VK_SUCCESS != vkCreatePipelineLayout(device.GetDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout))
+	{
+		DL_LOG_ERROR("Failed to create compute pipeline layout");
+		std::abort();
+	}
+
+	VkPipelineShaderStageCreateInfo shaderStageInfo{};
+	shaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	shaderStageInfo.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+	shaderStageInfo.module = desc.computeShader;
+	shaderStageInfo.pName = desc.computeEntryPoint;
+
+	VkComputePipelineCreateInfo pipelineInfo{};
+	pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	pipelineInfo.stage = shaderStageInfo;
+	pipelineInfo.layout = pipelineLayout;
+
+	if (VK_SUCCESS != vkCreateComputePipelines(device.GetDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline))
+	{
+		DL_LOG_ERROR("Failed to create compute pipeline");
+		std::abort();
+	}
+}
+
+void Dlight::VulkanComputePipeline::Shutdown()
 {
 	if (pipeline)
 	{

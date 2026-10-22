@@ -7,7 +7,7 @@ Dlight::Image::Image(std::string_view filePath)
 	std::string path(filePath);
 	depth = 1;
 	mipLevels = 1;
-	format = VK_FORMAT_R8G8B8A8_UNORM;
+	format = VK_FORMAT_R8G8B8A8_SRGB;
 
 	stbi_uc* _pixels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 	if (!_pixels)

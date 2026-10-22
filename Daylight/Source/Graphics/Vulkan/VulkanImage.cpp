@@ -2,55 +2,38 @@
 #include "VulkanImage.h"
 #include "VulkanDevice.h"
 
-Dlight::VulkanImage::VulkanImage(VulkanDevice& _device, const FVulkanImageDesc& desc)
+Dlight::VulkanImage::VulkanImage(
+	VulkanDevice& _device,
+	const VkImageCreateInfo& imageCreateInfo,
+	const VkImageViewCreateInfo& imageViewCreateInfo)
 	: device(_device)
-	, width(desc.width)
-	, height(desc.height)
-	, usage(desc.usage)
+	, width(imageCreateInfo.extent.width)
+	, height(imageCreateInfo.extent.height)
+	, usage(imageCreateInfo.usage)
 {
-	if (desc.width == 0 || desc.height == 0 ||
-		desc.format == VK_FORMAT_UNDEFINED || desc.usage == 0)
+	if (imageCreateInfo.sType != VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO ||
+		imageViewCreateInfo.sType != VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO ||
+		imageCreateInfo.extent.width == 0 || imageCreateInfo.extent.height == 0 ||
+		imageCreateInfo.extent.depth == 0 ||
+		imageCreateInfo.format == VK_FORMAT_UNDEFINED ||
+		imageViewCreateInfo.format == VK_FORMAT_UNDEFINED ||
+		imageCreateInfo.usage == 0)
 	{
 		DL_LOG_ERROR("Invalid image description");
 		std::abort();
 	}
 
-	// GPU 이미지와 메모리 생성
-	VkImageCreateInfo imageInfo{};
-	imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	imageInfo.imageType = VK_IMAGE_TYPE_2D;
-	imageInfo.format = desc.format;
-	imageInfo.extent = { desc.width, desc.height, 1 };
-	imageInfo.mipLevels = 1;
-	imageInfo.arrayLayers = 1;
-	imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-	imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-	imageInfo.usage = desc.usage;
-	imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
 	VmaAllocationCreateInfo allocInfo{};
-	allocInfo.usage = desc.memoryUsage;
-	allocInfo.flags = desc.allocationFlags;
+	allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
 
-	
-	if (VK_SUCCESS != vmaCreateImage(device.GetVmaAllocator(), &imageInfo, &allocInfo, &image, &allocation, nullptr))
+	if (VK_SUCCESS != vmaCreateImage(device.GetVmaAllocator(), &imageCreateInfo, &allocInfo, &image, &allocation, nullptr))
 	{
 		DL_LOG_ERROR("Failed to create image");
 		std::abort();
 	}
 
-	VkImageViewCreateInfo viewInfo = {};
-	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	VkImageViewCreateInfo viewInfo = imageViewCreateInfo;
 	viewInfo.image = image;
-	viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	viewInfo.format = desc.format;
-
-	viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	viewInfo.subresourceRange.baseMipLevel = 0;
-	viewInfo.subresourceRange.levelCount = 1;
-	viewInfo.subresourceRange.baseArrayLayer = 0;
-	viewInfo.subresourceRange.layerCount = 1;
 
 	if (VK_SUCCESS != vkCreateImageView(device.GetDevice(), &viewInfo, nullptr, &imageView))
 	{

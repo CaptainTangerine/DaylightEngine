@@ -66,6 +66,12 @@ namespace Dlight
 			std::abort();
 		}
 
+		if (!(surfaceCaps.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT))
+		{
+			DL_LOG_ERROR("Swapchain does not support transfer destination usage");
+			std::abort();
+		}
+
 		VkExtent2D imageExtent{};
 		if (surfaceCaps.currentExtent.width != UINT32_MAX)
 		{
@@ -99,7 +105,7 @@ namespace Dlight
 		swapchainCreateInfo.imageColorSpace = VK_COLORSPACE_SRGB_NONLINEAR_KHR;
 		swapchainCreateInfo.imageExtent = imageExtent;
 		swapchainCreateInfo.imageArrayLayers = 1;
-		swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 		swapchainCreateInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 		swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
 		swapchainCreateInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;

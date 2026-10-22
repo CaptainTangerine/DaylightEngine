@@ -77,12 +77,20 @@ target_compile_definitions(Daylight PRIVATE
 
 # 기존 MSVC 경고 수준 / 코드 검사 / 런타임, 디버깅, 최적화 설정
 if(MSVC)
+    # /ZI 및 /Zi는 외부 PDB writer(mspdbsrv.exe)에 의존한다. 이 환경에서는
+    # compiler와 PDB manager 버전이 어긋나 C1902가 발생하므로 Debug 정보는
+    # 각 object에 포함하는 /Z7로 통일한다. Release에는 디버그 정보를 만들지 않는다.
+    set_target_properties(tinygltf PROPERTIES
+        MSVC_DEBUG_INFORMATION_FORMAT
+            "$<$<CONFIG:Debug>:Embedded>"
+    )
+
     set_target_properties(Daylight PROPERTIES
         MSVC_RUNTIME_LIBRARY
             "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
 
         MSVC_DEBUG_INFORMATION_FORMAT
-            "$<IF:$<CONFIG:Debug>,EditAndContinue,ProgramDatabase>"
+            "$<$<CONFIG:Debug>:Embedded>"
     )
 
     target_compile_options(Daylight PRIVATE
@@ -96,8 +104,7 @@ if(MSVC)
     )
 
     target_link_options(Daylight PRIVATE
-        "$<$<CONFIG:Release>:/DEBUG>"
-        "$<$<CONFIG:Release>:/LTCG:INCREMENTAL>"
+        "$<$<CONFIG:Release>:/LTCG>"
     )
 
 endif()
@@ -136,6 +143,10 @@ add_custom_target(DaylightRuntimeFiles
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/Daylight/Asset/Image"
         "$<TARGET_FILE_DIR:Daylight>/Assets/Image"
+
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/Daylight/Icon.png"
+        "$<TARGET_FILE_DIR:Daylight>/Assets/Image/Icon.png"
 
     COMMENT "실행에 필요한 DLL, 셰이더 및 이미지 복사"
     VERBATIM

@@ -7,7 +7,6 @@
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
 
-#include "VulkanSwapchain.h"
 #include "VulkanBuffer.h"
 #include "VulkanImage.h"
 
@@ -112,8 +111,10 @@ namespace Dlight
 		return true;
 	}
 
-	bool VulkanDevice::UpdateSwapchain(uint32 width, uint32 height)
+	bool VulkanDevice::UpdateSwapchain(uint32 width, uint32 height, bool& recreated)
 	{
+		recreated = false;
+
 		if (width == 0 || height == 0)
 		{
 			return false;
@@ -130,25 +131,11 @@ namespace Dlight
 			return false;
 		}
 
-		if (!CreateDepthStencilResources())
-		{
-			DL_LOG_ERROR("Failed to recreate depth-stencil resources");
-			std::abort();
-		}
-
 		bRequireRecreateSwapchain = false;
+		recreated = true;
 		return true;
 	}
 
-	FRenderFrameContext VulkanDevice::GetCurrentRenderFrameContext() const
-	{
-		FRenderFrameContext context{};
-		context.commandBuffer = GetCurrentFrameResource().commandBuffer;
-		context.colorImageView = swapchain->GetSwapchainImageView(imageIndex);
-		context.depthStencilImageView = depthStencilImageView;
-		context.extent = { swapchain->GetWidth(), swapchain->GetHeight() };
-		return context;
-	}
 
 	void VulkanDevice::BeginFrame()
 	{
@@ -164,47 +151,6 @@ namespace Dlight
 			DL_LOG_ERROR("Failed to begin command buffer: ");
 			std::abort();
 		}
-
-		std::vector<VkImageMemoryBarrier2> layoutBarriers;
-		layoutBarriers.resize(2);
-
-		// Color Attachment
-		layoutBarriers[0].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-		layoutBarriers[0].srcStageMask = VK_PIPELINE_STAGE_2_NONE;
-		layoutBarriers[0].srcAccessMask = 0;
-		layoutBarriers[0].dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
-		layoutBarriers[0].dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-		layoutBarriers[0].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		layoutBarriers[0].newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		layoutBarriers[0].image = swapchain->GetSwapchianImage(imageIndex);
-		layoutBarriers[0].subresourceRange.aspectMask = { VK_IMAGE_ASPECT_COLOR_BIT };
-		layoutBarriers[0].subresourceRange.baseMipLevel = 0;
-		layoutBarriers[0].subresourceRange.levelCount = 1;
-		layoutBarriers[0].subresourceRange.baseArrayLayer = 0;
-		layoutBarriers[0].subresourceRange.layerCount = 1;
-
-		// Depthstencil
-		layoutBarriers[1].sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-		layoutBarriers[1].srcStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
-		layoutBarriers[1].srcAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		layoutBarriers[1].dstStageMask = VK_PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT;
-		layoutBarriers[1].dstAccessMask = VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-		layoutBarriers[1].oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		layoutBarriers[1].newLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-		layoutBarriers[1].image = depthStencilImage;
-		layoutBarriers[1].subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-		layoutBarriers[1].subresourceRange.baseMipLevel = 0;
-		layoutBarriers[1].subresourceRange.levelCount = 1;
-		layoutBarriers[1].subresourceRange.baseArrayLayer = 0;
-		layoutBarriers[1].subresourceRange.layerCount = 1;
-
-		VkDependencyInfo depInfo = {};
-		depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
-		depInfo.imageMemoryBarrierCount = static_cast<uint32>(layoutBarriers.size());
-		depInfo.pImageMemoryBarriers = layoutBarriers.data();
-		vkCmdPipelineBarrier2(res.commandBuffer, &depInfo);
-
-
 	}
 
 	void VulkanDevice::EndFrame()
@@ -215,11 +161,11 @@ namespace Dlight
 
 		VkImageMemoryBarrier2 presentLayoutBarrier = {};
 		presentLayoutBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-		presentLayoutBarrier.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-		presentLayoutBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		presentLayoutBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+		presentLayoutBarrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
 		presentLayoutBarrier.dstStageMask = VK_PIPELINE_STAGE_NONE;
 		presentLayoutBarrier.dstAccessMask = 0;
-		presentLayoutBarrier.oldLayout = VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL;
+		presentLayoutBarrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
 		presentLayoutBarrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 		presentLayoutBarrier.image = swapchain->GetSwapchianImage(imageIndex);
 		presentLayoutBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
@@ -248,14 +194,14 @@ namespace Dlight
 		VkSemaphoreSubmitInfo imageAquireWaitInfo = {};
 		imageAquireWaitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
 		imageAquireWaitInfo.semaphore = res.imageAcquiredSemaphore;
-		imageAquireWaitInfo.stageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+		imageAquireWaitInfo.stageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
 
 		std::vector<VkSemaphoreSubmitInfo> semaphoreSignals;
 		semaphoreSignals.resize(2);
 
 		//render complete semaphore
 		semaphoreSignals[0].sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
-		semaphoreSignals[0].stageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT;
+		semaphoreSignals[0].stageMask = VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT;
 		semaphoreSignals[0].semaphore = renderComplete;
 
 		// timellinesemaphore
@@ -336,7 +282,7 @@ namespace Dlight
 		VkCommandPoolCreateInfo poolInfo = {};
 		poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 		poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-		poolInfo.queueFamilyIndex = gfxQueueFamilyIndex;
+		poolInfo.queueFamilyIndex = gfxAndComputeQueueFamilyIndex;
 
 		if (VK_SUCCESS != vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool))
 		{
@@ -488,7 +434,7 @@ namespace Dlight
 		VkCommandPoolCreateInfo poolInfo = {};
 		poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
 		poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
-		poolInfo.queueFamilyIndex = gfxQueueFamilyIndex;
+		poolInfo.queueFamilyIndex = gfxAndComputeQueueFamilyIndex;
 
 		if (VK_SUCCESS != vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool))
 		{
@@ -647,11 +593,6 @@ namespace Dlight
 			// 시작할 때 최소화되어 있어도 복원 후 자원을 생성할 수 있게 한다.
 			bRequireRecreateSwapchain = true;
 		}
-		else if (!CreateDepthStencilResources())
-		{
-			DL_LOG_ERROR("Failed to create depth-stencil resources");
-			std::abort();
-		}
 
 		if (!CreateSyncResources())
 		{
@@ -681,8 +622,6 @@ namespace Dlight
 	void VulkanDevice::Shutdown()
 	{
 		DestroyDescriptors();
-
-		DestroyDepthStencilResources();
 
 		if (timelineSemaphore)
 		{
@@ -738,7 +677,7 @@ namespace Dlight
 
 		physicalDevice = VK_NULL_HANDLE;
 		gfxQueue = VK_NULL_HANDLE;
-		gfxQueueFamilyIndex = UINT32_MAX;
+		gfxAndComputeQueueFamilyIndex = UINT32_MAX;
 
 	}
 
@@ -895,9 +834,9 @@ namespace Dlight
 
 			const auto& props = queueFamilyProps[curFamilyIndex];
 
-			if ((props.queueFamilyProperties.queueFlags & VK_QUEUE_GRAPHICS_BIT) && bHasPresentSupport)
+			if ((props.queueFamilyProperties.queueFlags & (VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT)) && bHasPresentSupport)
 			{
-				gfxQueueFamilyIndex = curFamilyIndex;
+				gfxAndComputeQueueFamilyIndex = curFamilyIndex;
 				return true;
 			}
 		}
@@ -958,7 +897,7 @@ namespace Dlight
 		std::vector<float> queuePriorities{ 1.f };
 		VkDeviceQueueCreateInfo gfxQueueInfo{};
 		gfxQueueInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		gfxQueueInfo.queueFamilyIndex = gfxQueueFamilyIndex;
+		gfxQueueInfo.queueFamilyIndex = gfxAndComputeQueueFamilyIndex;
 		gfxQueueInfo.queueCount = 1;
 		gfxQueueInfo.pQueuePriorities = queuePriorities.data();
 
@@ -980,7 +919,7 @@ namespace Dlight
 			return false;
 		}
 
-		vkGetDeviceQueue(device, gfxQueueFamilyIndex, 0, &gfxQueue);
+		vkGetDeviceQueue(device, gfxAndComputeQueueFamilyIndex, 0, &gfxQueue);
 		if (!gfxQueue)
 		{
 			DL_LOG_ERROR("Could't get the graphics queue");
@@ -1008,76 +947,6 @@ namespace Dlight
 		}
 
 		return true;
-	}
-
-	bool VulkanDevice::CreateDepthStencilResources()
-	{
-		VkFormatProperties formatProperties{};
-		vkGetPhysicalDeviceFormatProperties(physicalDevice, depthStencilFormat, &formatProperties);
-		if (!(formatProperties.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT))
-		{
-			DL_LOG_ERROR("VK_FORMAT_D32_SFLOAT_S8_UINT is not supported as a depth-stencil attachment");
-			return false;
-		}
-
-		DestroyDepthStencilResources();
-
-		VkImageCreateInfo depthStencilCreateInfo = {};
-		depthStencilCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		depthStencilCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-		depthStencilCreateInfo.format = depthStencilFormat;
-		depthStencilCreateInfo.extent.width = GetSwapchain().GetWidth();
-		depthStencilCreateInfo.extent.height = GetSwapchain().GetHeight();
-		depthStencilCreateInfo.extent.depth = 1;
-		depthStencilCreateInfo.mipLevels = 1;
-		depthStencilCreateInfo.arrayLayers = 1;
-		depthStencilCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-		depthStencilCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		depthStencilCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-		depthStencilCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-		VmaAllocationCreateInfo allocInfo = {};
-		allocInfo.flags = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
-		allocInfo.usage = VMA_MEMORY_USAGE_AUTO;
-
-		if (VK_SUCCESS != vmaCreateImage(vmaAllocator, &depthStencilCreateInfo, &allocInfo, &depthStencilImage, &depthStencilImageAllocation, nullptr))
-		{
-			DL_LOG_ERROR("Failed to allocate depth-stencil image");
-			return false;
-		}
-
-		VkImageViewCreateInfo viewInfo{};
-		viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		viewInfo.image = depthStencilImage;
-		viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		viewInfo.format = depthStencilFormat;
-		viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-		viewInfo.subresourceRange.levelCount = 1;
-		viewInfo.subresourceRange.layerCount = 1;
-
-		if (vkCreateImageView(device, &viewInfo, nullptr, &depthStencilImageView) != VK_SUCCESS)
-		{
-			DL_LOG_ERROR("Failed to create depth-stencil image view");
-			DestroyDepthStencilResources();
-			return false;
-		}
-
-		return true;
-	}
-
-	void VulkanDevice::DestroyDepthStencilResources()
-	{
-		if (depthStencilImageView)
-		{
-			vkDestroyImageView(device, depthStencilImageView, nullptr);
-			depthStencilImageView = nullptr;
-		}
-		if (depthStencilImage)
-		{
-			vmaDestroyImage(vmaAllocator, depthStencilImage, depthStencilImageAllocation);
-			depthStencilImage = nullptr;
-			depthStencilImageAllocation = nullptr;
-		}
 	}
 
 	bool VulkanDevice::CreateBindlessDescriptors()
@@ -1253,12 +1122,15 @@ namespace Dlight
 	}
 	bool VulkanDevice::CreateCommandBuffers()
 	{
-		for (FFrameResource& res : frameResources)
+		for (uint32 frameSlot = 0; frameSlot < MaxFramesInFlight; ++frameSlot)
 		{
+			FFrameResource& res = frameResources[frameSlot];
+			res.frameSlot = frameSlot;
+
 			VkCommandPoolCreateInfo poolInfo = {};
 
 			poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-			poolInfo.queueFamilyIndex = gfxQueueFamilyIndex;
+			poolInfo.queueFamilyIndex = gfxAndComputeQueueFamilyIndex;
 
 			if (VK_SUCCESS != vkCreateCommandPool(device, &poolInfo, nullptr, &res.commandPool))
 			{

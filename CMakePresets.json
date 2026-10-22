@@ -10,8 +10,12 @@
         "value": "x64",
         "strategy": "external"
       },
+      "environment": {
+        "VSLANG": "1033"
+      },
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_MSVC_DEBUG_INFORMATION_FORMAT": "Embedded",
         "TinyGLTF_ROOT": "C:/tinygltf-3.0.1"
       }
     },
@@ -27,11 +31,17 @@
   "buildPresets": [
     {
       "name": "windows-debug",
-      "configurePreset": "windows-debug"
+      "configurePreset": "windows-debug",
+      "environment": {
+        "VSLANG": "1033"
+      }
     },
     {
       "name": "windows-release",
-      "configurePreset": "windows-release"
+      "configurePreset": "windows-release",
+      "environment": {
+        "VSLANG": "1033"
+      }
     }
   ]
 }
