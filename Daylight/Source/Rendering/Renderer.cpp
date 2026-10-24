@@ -1,6 +1,7 @@
 #include "pch.h"
 #include "Renderer.h"
 #include "GPUProfiler.h"
+#include "PushConstants.h"
 
 #include "Core/Paths.h"
 
@@ -170,6 +171,9 @@ namespace Dlight
 		computeOutputImageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
 		computeOutputImageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
+		VkImageCreateInfo horizontalBlurImageInfo = computeOutputImageInfo;
+		horizontalBlurImageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+
 		VkImageViewCreateInfo imageViewInfo{};
 		imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 		imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
@@ -184,10 +188,12 @@ namespace Dlight
 		computeOutputImageViewInfo.format = computeOutputImageInfo.format;
 
 		sceneColorImages.reserve(VulkanDevice::MaxFramesInFlight);
+		horizontalBlurImages.reserve(VulkanDevice::MaxFramesInFlight);
 		computeOutputImages.reserve(VulkanDevice::MaxFramesInFlight);
 		for (uint32 frameSlot = 0; frameSlot < VulkanDevice::MaxFramesInFlight; ++frameSlot)
 		{
 			sceneColorImages.push_back(std::make_unique<VulkanImage>(device, imageInfo, imageViewInfo));
+			horizontalBlurImages.push_back(std::make_unique<VulkanImage>(device, horizontalBlurImageInfo, computeOutputImageViewInfo));
 			computeOutputImages.push_back(std::make_unique<VulkanImage>(device, computeOutputImageInfo, computeOutputImageViewInfo));
 		}
 
@@ -197,6 +203,7 @@ namespace Dlight
 	void Renderer::DestroySceneColorImages()
 	{
 		sceneColorImages.clear();
+		horizontalBlurImages.clear();
 		computeOutputImages.clear();
 	}
 
@@ -457,6 +464,12 @@ namespace Dlight
 			computeDescriptorSetLayout
 		};
 
+		VkPushConstantRange pushConstantRange{};
+		pushConstantRange.stageFlags = VK_SHADER_STAGE_COMPUTE_BIT;
+		pushConstantRange.offset = 0;
+		pushConstantRange.size = sizeof(FBlurPushConstants);
+		pipelineDesc.pushConstantRanges = { pushConstantRange };
+
 		blurPipeline = std::make_unique<VulkanComputePipeline>(device, pipelineDesc);
 		vkDestroyShaderModule(device.GetDevice(), compModule, nullptr);
 
@@ -465,20 +478,22 @@ namespace Dlight
 
 	bool Renderer::CreateComputeDescriptorSets()
 	{
-		computeDescriptorSets.resize(VulkanDevice::MaxFramesInFlight);
+		horizontalBlurDescriptorSets.resize(VulkanDevice::MaxFramesInFlight);
+		verticalBlurDescriptorSets.resize(VulkanDevice::MaxFramesInFlight);
 
 		// DescriptorPool 
 		constexpr uint32 frameCount = VulkanDevice::MaxFramesInFlight;
+		constexpr uint32 descriptorSetCount = frameCount * 2;
 
 		std::array<VkDescriptorPoolSize, 2> poolSizes = {};
-		poolSizes[0].descriptorCount = frameCount;
+		poolSizes[0].descriptorCount = descriptorSetCount;
 		poolSizes[0].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-		poolSizes[1].descriptorCount = frameCount;
+		poolSizes[1].descriptorCount = descriptorSetCount;
 		poolSizes[1].type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 
 		VkDescriptorPoolCreateInfo poolInfo{};
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-		poolInfo.maxSets = frameCount;
+		poolInfo.maxSets = descriptorSetCount;
 		poolInfo.poolSizeCount = static_cast<uint32>(poolSizes.size());
 		poolInfo.pPoolSizes = poolSizes.data();
 
@@ -497,9 +512,15 @@ namespace Dlight
 		allocateInfo.descriptorSetCount = frameCount;
 		allocateInfo.pSetLayouts = layouts.data();
 
-		if (VK_SUCCESS != vkAllocateDescriptorSets(device.GetDevice(), &allocateInfo, computeDescriptorSets.data()))
+		if (VK_SUCCESS != vkAllocateDescriptorSets(device.GetDevice(), &allocateInfo, horizontalBlurDescriptorSets.data()))
 		{
-			DL_LOG_ERROR("Fail to allocate compute descriptorSet");
+			DL_LOG_ERROR("Failed to allocate horizontal blur descriptor sets");
+			std::abort();
+		}
+
+		if (VK_SUCCESS != vkAllocateDescriptorSets(device.GetDevice(), &allocateInfo, verticalBlurDescriptorSets.data()))
+		{
+			DL_LOG_ERROR("Failed to allocate vertical blur descriptor sets");
 			std::abort();
 		}
 
@@ -513,28 +534,50 @@ namespace Dlight
 
 		for (uint32 frameSlot = 0; frameSlot < frameCount; ++frameSlot)
 		{
-			VkDescriptorImageInfo sceneColorInfo{};
-			sceneColorInfo.imageView = sceneColorImages[frameSlot]->GetImageView();
-			sceneColorInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			VkDescriptorImageInfo horizontalInputInfo{};
+			horizontalInputInfo.imageView = sceneColorImages[frameSlot]->GetImageView();
+			horizontalInputInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-			VkDescriptorImageInfo computeOutputInfo = {};
-			computeOutputInfo.imageView = computeOutputImages[frameSlot]->GetImageView();
-			computeOutputInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+			VkDescriptorImageInfo horizontalOutputInfo{};
+			horizontalOutputInfo.imageView = horizontalBlurImages[frameSlot]->GetImageView();
+			horizontalOutputInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
-			std::array<VkWriteDescriptorSet, 2> writes = {};
+			VkDescriptorImageInfo verticalInputInfo{};
+			verticalInputInfo.imageView = horizontalBlurImages[frameSlot]->GetImageView();
+			verticalInputInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+			VkDescriptorImageInfo verticalOutputInfo{};
+			verticalOutputInfo.imageView = computeOutputImages[frameSlot]->GetImageView();
+			verticalOutputInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+			std::array<VkWriteDescriptorSet, 4> writes = {};
 			writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			writes[0].dstSet = computeDescriptorSets[frameSlot];
+			writes[0].dstSet = horizontalBlurDescriptorSets[frameSlot];
 			writes[0].dstBinding = 0;
 			writes[0].descriptorCount = 1;
 			writes[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-			writes[0].pImageInfo = &sceneColorInfo;
+			writes[0].pImageInfo = &horizontalInputInfo;
 
 			writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-			writes[1].dstSet = computeDescriptorSets[frameSlot];
+			writes[1].dstSet = horizontalBlurDescriptorSets[frameSlot];
 			writes[1].dstBinding = 1;
 			writes[1].descriptorCount = 1;
 			writes[1].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
-			writes[1].pImageInfo = &computeOutputInfo;
+			writes[1].pImageInfo = &horizontalOutputInfo;
+
+			writes[2].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writes[2].dstSet = verticalBlurDescriptorSets[frameSlot];
+			writes[2].dstBinding = 0;
+			writes[2].descriptorCount = 1;
+			writes[2].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+			writes[2].pImageInfo = &verticalInputInfo;
+
+			writes[3].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writes[3].dstSet = verticalBlurDescriptorSets[frameSlot];
+			writes[3].dstBinding = 1;
+			writes[3].descriptorCount = 1;
+			writes[3].descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+			writes[3].pImageInfo = &verticalOutputInfo;
 
 			vkUpdateDescriptorSets(device.GetDevice(), static_cast<uint32>(writes.size()), writes.data(), 0, nullptr);
 		}
@@ -548,7 +591,8 @@ namespace Dlight
 			computeDescriptorPool = VK_NULL_HANDLE;
 		}
 
-		computeDescriptorSets.clear();
+		horizontalBlurDescriptorSets.clear();
+		verticalBlurDescriptorSets.clear();
 
 		if (computeDescriptorSetLayout != VK_NULL_HANDLE)
 		{
@@ -702,29 +746,80 @@ namespace Dlight
 		vkCmdEndRendering(commandBuffer);
 	}
 
-	void Renderer::TransitionComputePassImages(VkCommandBuffer commandBuffer)
+	void Renderer::TransitionHorizontalBlurPassImages(VkCommandBuffer commandBuffer)
 	{
-		VkImageMemoryBarrier2 sceneColorBarrier = {};
+		VkImageMemoryBarrier2 computeInputBarrier = {};
 		FFrameResource& resource = device.GetCurrentFrameResource();
 
-		sceneColorBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-		sceneColorBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;;
-		sceneColorBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
-		sceneColorBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
-		sceneColorBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
-		sceneColorBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		sceneColorBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-		sceneColorBarrier.image = sceneColorImages[resource.frameSlot]->GetImage();
-		sceneColorBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		sceneColorBarrier.subresourceRange.baseMipLevel = 0;
-		sceneColorBarrier.subresourceRange.levelCount = 1;
-		sceneColorBarrier.subresourceRange.baseArrayLayer = 0;
-		sceneColorBarrier.subresourceRange.layerCount = 1;
+		computeInputBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		computeInputBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;;
+		computeInputBarrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+		computeInputBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+		computeInputBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+		computeInputBarrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		computeInputBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		computeInputBarrier.image = sceneColorImages[resource.frameSlot]->GetImage();
+		computeInputBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		computeInputBarrier.subresourceRange.baseMipLevel = 0;
+		computeInputBarrier.subresourceRange.levelCount = 1;
+		computeInputBarrier.subresourceRange.baseArrayLayer = 0;
+		computeInputBarrier.subresourceRange.layerCount = 1;
+
+		VkDependencyInfo computeInputDepInfo = {};
+		computeInputDepInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		computeInputDepInfo.imageMemoryBarrierCount = 1;
+		computeInputDepInfo.pImageMemoryBarriers = &computeInputBarrier;
+		vkCmdPipelineBarrier2(commandBuffer, &computeInputDepInfo);
+
+		VkImageMemoryBarrier2 computeOutputBarrier = {};
+
+		computeOutputBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		computeOutputBarrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+		computeOutputBarrier.srcAccessMask = VK_ACCESS_2_NONE;
+		computeOutputBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+		computeOutputBarrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+		computeOutputBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		computeOutputBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+		computeOutputBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		computeOutputBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		computeOutputBarrier.image = horizontalBlurImages[resource.frameSlot]->GetImage();
+		computeOutputBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		computeOutputBarrier.subresourceRange.baseMipLevel = 0;
+		computeOutputBarrier.subresourceRange.levelCount = 1;
+		computeOutputBarrier.subresourceRange.baseArrayLayer = 0;
+		computeOutputBarrier.subresourceRange.layerCount = 1;
+
+		VkDependencyInfo computeOutputDepInfo = {};
+		computeOutputDepInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
+		computeOutputDepInfo.imageMemoryBarrierCount = 1;
+		computeOutputDepInfo.pImageMemoryBarriers = &computeOutputBarrier;
+		vkCmdPipelineBarrier2(commandBuffer, &computeOutputDepInfo);
+
+	}
+
+	void Renderer::TransitionVerticalBlurPassImages(VkCommandBuffer commandBuffer)
+	{
+		VkImageMemoryBarrier2 computeInputBarrier = {};
+		FFrameResource& resource = device.GetCurrentFrameResource();
+
+		computeInputBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
+		computeInputBarrier.srcStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;;
+		computeInputBarrier.srcAccessMask = VK_ACCESS_2_SHADER_WRITE_BIT;
+		computeInputBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+		computeInputBarrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+		computeInputBarrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+		computeInputBarrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+		computeInputBarrier.image = horizontalBlurImages[resource.frameSlot]->GetImage();
+		computeInputBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		computeInputBarrier.subresourceRange.baseMipLevel = 0;
+		computeInputBarrier.subresourceRange.levelCount = 1;
+		computeInputBarrier.subresourceRange.baseArrayLayer = 0;
+		computeInputBarrier.subresourceRange.layerCount = 1;
 
 		VkDependencyInfo sceneDepInfo = {};
 		sceneDepInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;
 		sceneDepInfo.imageMemoryBarrierCount = 1;
-		sceneDepInfo.pImageMemoryBarriers = &sceneColorBarrier;
+		sceneDepInfo.pImageMemoryBarriers = &computeInputBarrier;
 		vkCmdPipelineBarrier2(commandBuffer, &sceneDepInfo);
 
 		VkImageMemoryBarrier2 computeOutputBarrier = {};
@@ -735,7 +830,9 @@ namespace Dlight
 		computeOutputBarrier.dstStageMask = VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
 		computeOutputBarrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
 		computeOutputBarrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		computeOutputBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL; 
+		computeOutputBarrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+		computeOutputBarrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		computeOutputBarrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		computeOutputBarrier.image = computeOutputImages[resource.frameSlot]->GetImage();
 		computeOutputBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		computeOutputBarrier.subresourceRange.baseMipLevel = 0;
@@ -748,19 +845,20 @@ namespace Dlight
 		computeDepInfo.imageMemoryBarrierCount = 1;
 		computeDepInfo.pImageMemoryBarriers = &computeOutputBarrier;
 		vkCmdPipelineBarrier2(commandBuffer, &computeDepInfo);
-
 	}
 
 	void Renderer::BlurPass(VkCommandBuffer commandBuffer)
 	{
 		const FFrameResource& frameResource = device.GetCurrentFrameResource();
 
-		// SceneColor -> ComputeOutput 이미지 레이아웃 전환 
-		TransitionComputePassImages(commandBuffer);
-
+		// SceneColor 읽기와 가로 블러 중간 이미지 쓰기를 준비한다.
+		TransitionHorizontalBlurPassImages(commandBuffer);
+		FBlurPushConstants constants{ { 1, 0 } };
+		
+		vkCmdPushConstants(commandBuffer, blurPipeline->GetPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
 
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, blurPipeline->GetPipeline());
-		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, blurPipeline->GetPipelineLayout(), 0, 1, &computeDescriptorSets[frameResource.frameSlot], 0, nullptr);
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, blurPipeline->GetPipelineLayout(), 0, 1, &horizontalBlurDescriptorSets[frameResource.frameSlot], 0, nullptr);
 
 		constexpr uint32 threadGroupSizeX = 8;
 		constexpr uint32 threadGroupSizeY = 8;
@@ -769,6 +867,15 @@ namespace Dlight
 		const uint32 groupCountY = (device.GetSwapchain().GetHeight() + threadGroupSizeY - 1) / threadGroupSizeY;
 
 		vkCmdDispatch(commandBuffer, groupCountX, groupCountY, 1);
+
+		TransitionVerticalBlurPassImages(commandBuffer);
+		constants = { 0, 1 };
+		vkCmdPushConstants(commandBuffer, blurPipeline->GetPipelineLayout(), VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(constants), &constants);
+		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, blurPipeline->GetPipeline());
+		vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, blurPipeline->GetPipelineLayout(), 0, 1, &verticalBlurDescriptorSets[frameResource.frameSlot], 0, nullptr);
+
+		vkCmdDispatch(commandBuffer, groupCountX, groupCountY, 1);
+
 	}
 
 	void Renderer::TransitionPresentPassImages(VkCommandBuffer commandBuffer)
