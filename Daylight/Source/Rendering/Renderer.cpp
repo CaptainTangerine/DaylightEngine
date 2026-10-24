@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "Renderer.h"
+#include "GPUProfiler.h"
 
 #include "Core/Paths.h"
 
@@ -856,11 +857,20 @@ namespace Dlight
 		const FFrameResource& frameResource = device.GetCurrentFrameResource();
 		const VkCommandBuffer commandBuffer = frameResource.commandBuffer;
 
-		ScenePass(commandBuffer);
-		BlurPass(commandBuffer);
+		GPUProfiler& profiler = device.GetGPUProfiler();
+		GPUProfiler::Scope frameScope(profiler, "Render");
+		{
+			GPUProfiler::Scope scope(profiler, "Scene");
+			ScenePass(commandBuffer);
+		}
+		{
+			GPUProfiler::Scope scope(profiler, "Blur");
+			BlurPass(commandBuffer);
+		}
 
 		// Present
 		const VkImage finalImage = computeOutputImages[frameResource.frameSlot]->GetImage();
+		GPUProfiler::Scope presentScope(profiler, "Blit");
 		TransitionPresentPassImages(commandBuffer);
 		// finalImage를 스왑체인 이미지로 변경
 		CopyToPresentImage(commandBuffer, finalImage);

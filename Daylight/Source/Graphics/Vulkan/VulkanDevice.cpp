@@ -9,6 +9,7 @@
 
 #include "VulkanBuffer.h"
 #include "VulkanImage.h"
+#include "Rendering/GPUProfiler.h"
 
 namespace Dlight
 {
@@ -151,6 +152,9 @@ namespace Dlight
 			DL_LOG_ERROR("Failed to begin command buffer: ");
 			std::abort();
 		}
+
+		// AcquireNextImage에서 이 프레임 슬롯의 GPU 작업 완료를 이미 기다렸다.
+		gpuProfiler->BeginFrame(res.frameSlot, res.commandBuffer);
 	}
 
 	void VulkanDevice::EndFrame()
@@ -180,6 +184,7 @@ namespace Dlight
 		presentDepInfo.pImageMemoryBarriers = &presentLayoutBarrier;
 		vkCmdPipelineBarrier2(res.commandBuffer, &presentDepInfo);
 
+		gpuProfiler->EndFrame();
 		vkEndCommandBuffer(res.commandBuffer);
 
 		// 이후 present시 presentEngine과 바이너리 세마포어로 동기화 처리해줘야함
@@ -617,10 +622,14 @@ namespace Dlight
 			DL_LOG_ERROR("Can't create smapler descriptor set");
 			std::abort();
 		}
+
+		gpuProfiler = std::make_unique<GPUProfiler>(*this, MaxFramesInFlight);
 	}
 
 	void VulkanDevice::Shutdown()
 	{
+		// Engine::Shutdown에서 디바이스의 GPU 작업 완료를 기다린 뒤 자원을 해제한다.
+		gpuProfiler.reset();
 		DestroyDescriptors();
 
 		if (timelineSemaphore)

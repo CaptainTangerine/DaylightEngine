@@ -14,6 +14,7 @@ namespace Dlight
 	class VulkanSwapchain;
 	class VulkanBuffer;
 	class VulkanImage;
+	class GPUProfiler;
 
 	struct FFrameResource
 	{
@@ -38,6 +39,7 @@ namespace Dlight
 		VkPhysicalDevice GetPhysicalDevice() const { return physicalDevice; }
 		VkDevice GetDevice() const { return device; }
 		VkQueue GetGraphicsQueue() const { return gfxQueue; }
+		GPUProfiler& GetGPUProfiler() { return *gpuProfiler; }
 		uint32 GetGraphicsAndComputeQueueFamilyIndex() const { return gfxAndComputeQueueFamilyIndex; }
 		VkSurfaceKHR GetSurface() const { return vulkanSurface; }
 		VmaAllocator GetVmaAllocator() const { return vmaAllocator;  }
@@ -122,6 +124,7 @@ namespace Dlight
 		std::array<FFrameResource, MaxFramesInFlight> frameResources;
 		uint64 frameIndex = { 0 };
 		uint64 nextSignalValue = { MaxFramesInFlight + 1 };
+		std::unique_ptr<GPUProfiler> gpuProfiler;
 
 		// Bindless DesciptorSet
 		constexpr static uint32 MaxTextures = { 64 };
