@@ -27,6 +27,7 @@ namespace Dlight
 		const char* computeEntryPoint = ShaderConventions::ComputeEntry;
 
 		std::vector<VkDescriptorSetLayout> descriptorSetLayouts;
+		std::vector<VkPushConstantRange> pushConstantRanges;
 	};
 
 	class VulkanDevice;

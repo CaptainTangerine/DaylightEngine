@@ -3,6 +3,17 @@
 > 갱신: 2026-10-26 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
 > 코드 존재, 과거 작업 보고, 현재 빌드/실행·validation 증거를 구분한다.
 
+### 2026-10-24 사용자 요청 구현·검증 — RAII GPU 프로파일러
+
+- 사용자가 프로파일러 구현을 명시적으로 요청하여 `Rendering/GPUProfiler.h/.cpp`를 추가했다. 프로파일러가 frame slot별 timestamp query pool을 소유하고, 복사·이동을 금지한 `GPUProfiler::Scope`가 생성/소멸 때 시작/끝 timestamp 명령을 기록한다. 중첩 구간은 자식 시간을 포함하며 프레임당 최대 32개다.
+- `VulkanDevice::BeginFrame`은 기존 `AcquireNextImage`의 timeline 대기가 끝난 slot의 이전 결과를 먼저 읽고 command buffer에 query reset을 기록한다. 읽기는 64-bit/availability 결과를 사용하고 추가 WAIT_BIT/queue-idle을 넣지 않는다. 큐의 timestamp 지원, timestampPeriod 환산, 유효 비트 폭의 wrap을 처리한다. GPU 완료 대기 뒤 device보다 먼저 query pool을 해제한다.
+- Renderer에 Render/Scene/Blur/Blit 스코프를 연결했다. 1초마다 최근 완료 프레임의 GPU ms를 로그로 출력하며 시간 평균이나 CPU/present 대기 시간은 아니다. TOP/BOTTOM timestamp를 이용한 근사 구간 측정이므로 개별 패스의 합을 전체 시간과 동일하다고 가정하지 않는다. 셰이더/블러 알고리즘은 변경하지 않았다.
+- Visual Studio 개발 환경에서 `cmake --build --preset windows-debug` 33단계 컴파일·링크 성공. 기존 FindVulkan의 DXC Debug 라이브러리 경고는 남아 있으나 빌드는 성공했다.
+- 현재 검증 환경의 실제 선택 GPU는 **NVIDIA GeForce MX450**이다. 1280×720 Debug 실행에서 GPU 로그 38개를 확인했고 대표 표본은 Render 20.622 ms / Scene 0.514 ms / Blur 19.862 ms / Blit 0.241 ms였다. 캡처 로그에서 validation warning/error는 0개다. 이 실행은 자동 실행용 격리 데스크톱에서 수행하여 마지막에 프로세스를 정리했으며 정상 종료 검증으로 간주하지 않는다.
+- 별도 대화형 실행에서는 블러 이미지, 최대화 및 원래 크기 복원 뒤 출력 지속, X 버튼 클릭 뒤 프로세스 소멸을 확인했다. 이 별도 실행의 종료 코드·validation 로그는 수집하지 않았다. 최소화/복원, Release 성능 기준선, 미지원 GPU/32개 초과 스코프의 실행 검증은 미완료다.
+- 당시 FPS 기준선의 미완료 상태와 별개로 프로파일러 구현·검증 기록을 보존한다. 2026-10-26 사용자 우선순위 변경 이후 FPS는 활성·대기 과제에서 제거되었으며 아래 JSON은 Render Graph 과제를 따른다.
+- 공식 근거: [Khronos timestamp queries](https://docs.vulkan.org/samples/latest/samples/api/timestamp_queries/README.html), [vkCmdWriteTimestamp2](https://docs.vulkan.org/refpages/latest/refpages/source/vkCmdWriteTimestamp2.html), [vkGetQueryPoolResults](https://docs.vulkan.org/refpages/latest/refpages/source/vkGetQueryPoolResults.html).
+
 ## 현재의 단 하나의 핵심 과제 — 2026-10-26 (월)
 
 **최소 Render Graph 리소스 모델 설계·첫 구현.** 예상 90~120분. 범용 그래프 전체를 복제하지 않고, 공통 `VirtualResource` 계약과 첫 구체 타입 `RenderGraphTexture`를 만든 뒤 현재 Scene → Blur → Present 흐름의 Read/Write 선언 자료를 수집하는 데 집중한다.

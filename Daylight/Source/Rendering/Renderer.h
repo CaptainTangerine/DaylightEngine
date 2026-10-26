@@ -53,7 +53,8 @@ namespace Dlight
 		void TransitionScenePassAttachments(VkCommandBuffer commandBuffer);
 		void ScenePass(VkCommandBuffer commandBuffer);
 
-		void TransitionComputePassImages(VkCommandBuffer commandBuffer);
+		void TransitionHorizontalBlurPassImages(VkCommandBuffer commandBuffer);
+		void TransitionVerticalBlurPassImages(VkCommandBuffer commandBuffer);
 		void BlurPass(VkCommandBuffer commandBuffer);
 		
 		void TransitionPresentPassImages(VkCommandBuffer commandBuffer);
@@ -64,6 +65,8 @@ namespace Dlight
 
 		// SceneColor Image
 		std::vector<std::unique_ptr<VulkanImage>> sceneColorImages;
+
+		std::vector<std::unique_ptr<VulkanImage>> horizontalBlurImages;
 
 		// ComputeOuput Image
 		std::vector<std::unique_ptr<VulkanImage>> computeOutputImages;
@@ -83,6 +86,7 @@ namespace Dlight
 		// Pipeline
 		std::unique_ptr<VulkanGraphicsPipeline> trianglePipeline = { nullptr };
 		std::unique_ptr<VulkanGraphicsPipeline> imageTestPipeline = { nullptr };
+
 		std::unique_ptr<VulkanComputePipeline> blurPipeline = { nullptr };
 
 
@@ -122,6 +126,7 @@ namespace Dlight
 		
 		VkDescriptorSetLayout computeDescriptorSetLayout = { VK_NULL_HANDLE } ;
 		VkDescriptorPool computeDescriptorPool = { VK_NULL_HANDLE };
-		std::vector<VkDescriptorSet> computeDescriptorSets;
+		std::vector<VkDescriptorSet> horizontalBlurDescriptorSets;
+		std::vector<VkDescriptorSet> verticalBlurDescriptorSets;
 	};
 }
