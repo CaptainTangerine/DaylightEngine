@@ -21,6 +21,7 @@ namespace Dlight
 		VkImage GetImage() const { return image; };
 		VkImageView GetImageView() const { return imageView; };
 		VkImageUsageFlags GetUsage() const { return usage; };
+		VkFormat GetFormat() const { return format; };
 		uint32 GetWidth() const { return width; };
 		uint32 GetHeight() const { return height; };
 
@@ -31,11 +32,9 @@ namespace Dlight
 		VkImageView imageView = { VK_NULL_HANDLE };
 		VmaAllocation allocation = { VK_NULL_HANDLE };
 
+		VkFormat format = {};
 		uint32 width = {};
 		uint32 height = {};
 		VkImageUsageFlags usage = {};
-
-		void* mappedData = {};
-
 	};
 }

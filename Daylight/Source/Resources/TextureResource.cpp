@@ -76,7 +76,7 @@ namespace Dlight
 
         device.UploadImage(*gpuImage, image.GetData(), image.GetSize(), EResourceState::Undefined, EResourceState::FragmentShaderRead);
 
-        return gpuImage;
+        return std::move(gpuImage);
     }
 
     void TextureResource::DoUnload()

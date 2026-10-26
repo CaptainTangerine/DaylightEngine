@@ -7,6 +7,7 @@ Dlight::VulkanImage::VulkanImage(
 	const VkImageCreateInfo& imageCreateInfo,
 	const VkImageViewCreateInfo& imageViewCreateInfo)
 	: device(_device)
+	, format(imageCreateInfo.format)
 	, width(imageCreateInfo.extent.width)
 	, height(imageCreateInfo.extent.height)
 	, usage(imageCreateInfo.usage)

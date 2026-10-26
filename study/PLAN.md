@@ -1,19 +1,29 @@
 # Vulkan Renderer · 학습 계획
 
-> 갱신: 2026-10-22 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
+> 갱신: 2026-10-26 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
 > 코드 존재, 과거 작업 보고, 현재 빌드/실행·validation 증거를 구분한다.
 
-## 다음 학습일의 단 하나의 핵심 과제 — 2026-10-23 (금)
+## 현재의 단 하나의 핵심 과제 — 2026-10-26 (월)
 
-**FPS 기준선 마무리 · IMMEDIATE 시각/resize/Release 검증.** 예상 60분. 10/22에 완료한 Debug 빌드·짧은 실행을 재사용하고 남은 시각 검증과 Release 측정만 수행한다.
+**최소 Render Graph 리소스 모델 설계·첫 구현.** 예상 90~120분. 범용 그래프 전체를 복제하지 않고, 공통 `VirtualResource` 계약과 첫 구체 타입 `RenderGraphTexture`를 만든 뒤 현재 Scene → Blur → Present 흐름의 Read/Write 선언 자료를 수집하는 데 집중한다.
 
-- 목표: `IMMEDIATE`에서 기존 이미지와 frame-start FPS 표시를 눈으로 확인하고 resize/minimize 및 Release 기준선을 검증한다.
-- 첫 20분: 0~10분 Debug에서 이미지·창 제목·티어링 여부 확인. 10~20분 resize/minimize 복귀와 X 버튼 정상 종료 및 validation 로그 기록.
-- 이번 세션 완료 기준: 사용자가 기존 이미지/FPS·deltaTime, resize/minimize 복귀, X 버튼 정상 종료, validation warning/error 수를 기록한다. 실패 시 첫 오류·재현 명령·다음 한 수를 남기고 미완료 유지.
-- 전체 과제 완료 기준: Release 링크 성공 및 1280×720/IMMEDIATE에서 3초 워밍업 후 10초 관찰 범위·조건·한계 기록까지 실제 증거 확보. 현재 in_progress/attempts=0 유지.
-- 자료: [Khronos Resource Management — Handles/Manager](https://docs.vulkan.org/tutorial/latest/Building_a_Simple_Engine/Engine_Architecture/04_resource_management.html), [VkPresentModeKHR — present modes](https://docs.vulkan.org/refpages/latest/refpages/source/VkPresentModeKHR.html).
-- 이해 질문: IMMEDIATE에서 frame-start FPS의 `deltaTime`을 GPU 단독 렌더링 시간으로 해석할 수 없는 이유는 무엇인가?
-- 다음 단계: Debug 검증 뒤 같은 FPS 과제의 Release 링크/10초 관찰만 재평가한다. 새 compute/glTF 과제를 쌓지 않는다.
+- 목표: 기존 장기 수명 `ResourceHandle<T>`와 프레임 한정 Render Graph 핸들을 분리하고, `VirtualResource`가 공통 수명·사용 구간을 관리하며 `RenderGraphTexture`가 texture별 descriptor/usage/물리 이미지를 담당하는 경계를 설계·구현한다.
+- 첫 20분: 0~10분 Scene/Blur/Present와 sceneColor/depth/computeOutput/swapchain의 Read/Write·usage 표를 작성한다. 10~20분 `VirtualResource`, typed handle, `RenderGraphTexture`, imported resource의 책임과 소유권을 한 줄씩 정한다.
+- 이번 세션 완료 기준:
+  - 소유권 없는 typed Render Graph handle과 공통 `VirtualResource` 계약, 첫 구체 타입 `RenderGraphTexture`의 최소 데이터 구조가 코드에 존재한다.
+  - Texture의 descriptor와 usage가 공통 리소스 정보와 분리되어 있고, 기존 `ResourceHandle<T>`/`ResourceManager`를 재사용하지 않는다.
+  - 현재 세 패스의 Read/Write 선언을 저장할 수 있으며, 잘못된 handle과 import되지 않은 외부 리소스를 검사하는 최소 검증 경로가 있다.
+  - 변경 소스가 Debug로 컴파일된다. 렌더 결과·자동 barrier·topological sort는 이번 과제의 완료 조건이 아니다.
+- 명시적 보류: DependencyGraph/topological sort, pass culling, resource versioning, transient allocation/aliasing, Buffer 구현, subresource, async compute, 자동 barrier 기록.
+- 자료: [Filament FrameGraph 개요](https://google.github.io/filament/notes/framegraph.html), [Filament VirtualResource/Resource 공식 소스](https://github.com/google/filament/blob/main/filament/src/fg/details/Resource.h), [Khronos Synchronization Examples](https://docs.vulkan.org/guide/latest/synchronization_examples.html).
+- 이해 질문: `VirtualResource`가 물리 `VulkanImage` 자체가 아니라 논리 리소스의 공통 수명·사용 정보를 나타내야 하는 이유는 무엇인가?
+- 다음 단계: 현재 세 패스를 등록 순서대로 실행하면서 리소스별 이전/다음 usage를 비교해 barrier plan만 계산한다. DependencyGraph는 순서 재배치나 pass culling이 실제로 필요해질 때 추가한다.
+
+### 2026-10-26 사용자 우선순위 변경
+
+- 사용자의 명시적 요청으로 FPS 기준선은 활성 과제와 대기 과제에서 제거했다. 10/21~22의 FPS 구현·실행 기록은 과거 검증 이력으로만 보존하며 이후 자동 재계획 대상으로 사용하지 않는다.
+- 현재 우선순위는 최소 Render Graph → glTF 모델 로딩/단색 출력 → GeometryPass/G-Buffer 시각화 → Deferred lighting → PBR 순서다.
+- 이번 변경은 `study/PLAN.md`만 갱신한다. RenderGraph 초안과 렌더러 소스는 사용자의 미커밋 작업으로 보존하며 수정·빌드하지 않는다.
 
 ### 10/22 자동 검토의 증거와 제약
 
@@ -146,16 +156,16 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 
 | 순서 | 마일스톤 | 검증 가능한 완료 기준 | 상태 |
 |---|---|---|---|
-| 0 | FPS 기준선 | CPU/present 순간 FPS와 deltaTime을 매 프레임 표시하고 Release 관찰 범위·조건을 기록 | **현재 활성 과제** |
-| 1 | 기존 이미지 출력 기준선 | 새 Debug 실행 화면, 정상 종료, resize/minimize, validation 결과 기록 | 코드 있음·재검증 필요 |
-| 2 | Compute blur 1-pass | dispatch·storage image·compute→fragment 배리어 후 블러 화면과 validation 0 | 대기 |
-| 3 | glTF 파싱 | 실제 TinyGLTF 로그가 위 메타데이터와 일치 | 미완료·대기 |
-| 4 | 첫 primitive CPU 추출 | 위치/인덱스 개수·범위·stride·샘플 값 확인 | 대기 |
-| 5 | 정적 glTF 출력 | 3D 위치/적절한 인덱스 업로드, 고정 MVP·깊이로 단색 모델 출력 | 대기 |
-| 6 | 카메라/노드/전체 모델 | 좌표계와 노드 변환 검증, orbit 및 전체 primitives 출력 | 대기 |
-| 7 | glTF 텍스처·재질 | UV/baseColor·sampler 연결, 여러 재질 인덱스 검증 | 대기 |
+| 0 | 최소 Render Graph 리소스 모델 | `VirtualResource` 공통 계약, typed handle, 첫 Texture 타입과 세 패스 Read/Write 자료 수집이 Debug 컴파일 | **현재 활성 과제** |
+| 1 | Render Graph barrier plan | 등록 순서 실행에서 Scene → Blur → Present usage 전환을 계산하고 기존 화면·validation 결과 유지 | 대기 |
+| 2 | glTF 파싱 | 실제 TinyGLTF 로그가 위 메타데이터와 일치 | 미완료·대기 |
+| 3 | 첫 primitive CPU 추출 | 위치/인덱스 개수·범위·stride·샘플 값 확인 | 대기 |
+| 4 | 정적 glTF 단색 출력 | 3D 위치/적절한 인덱스 업로드, 고정 MVP·깊이로 단색 모델 출력 | 대기 |
+| 5 | 카메라/노드/전체 모델 | 좌표계와 노드 변환 검증, orbit 및 전체 primitives 출력 | 대기 |
+| 6 | GeometryPass / G-Buffer | depth/normal/baseColor/material 출력을 각각 화면에 시각화 | 대기 |
+| 7 | Deferred lighting | G-Buffer Read와 sceneColor Write 의존성, 단순 직접광 결과 검증 | 대기 |
 | 8 | PBR | metallic/roughness와 normal, 직접광 결과를 기준 모델과 비교 | 대기 |
-| 9 | Deferred Rendering | G-Buffer 위치/normal/material 시각화, lighting pass·의존성 검증 | 대기 |
+| 9 | glTF 텍스처·재질 확장 | UV/baseColor·sampler 및 여러 재질 인덱스 검증 | 대기 |
 | 10 | Toon Shading | 명암 단계화 후 윤곽선 효과를 각각 비교 검증 | 대기 |
 
 후속 자료: [Khronos glTF Tutorial 9 — Meshes](https://github.com/KhronosGroup/glTF-Tutorials/blob/main/gltfTutorial/gltfTutorial_009_Meshes.md),
@@ -227,7 +237,7 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 
 ## 이전 설계·일정 기록 보존 — 2026-10-22 충돌 병합
 
-아래는 10/19까지의 이력이다. 현재 과제·우선순위는 위 10/21 FPS 과제와 아래 current_task를 따른다. 이전 설계 과제의 완료 여부는 별도 노트/검증 근거 없이 변경하지 않는다. 학습·일정 요청만으로 구현을 대신하지 않는 범위 규칙은 유지한다.
+아래는 10/19까지의 이력이다. 현재 과제·우선순위는 문서 맨 위의 2026-10-26 Render Graph 과제와 아래 current_task를 따른다. 이전 설계 과제의 완료 여부는 별도 노트/검증 근거 없이 변경하지 않는다. 학습·일정 요청만으로 구현을 대신하지 않는 범위 규칙은 유지한다.
 
 ## 학습 방향과 작업 범위 — 2026-10-15 사용자 정정
 
@@ -296,7 +306,7 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 
 - **유지:** CMake, Vulkan C API/기존 래퍼, HLSL/DXC, DirectXMath/SimpleMath와 현재 좌표계, VMA, Dynamic Rendering, Sync2/timeline, 기존 이미지 출력·Bindless 코드.
 - **설계 후 사용자 수정 대상:** Renderer의 자원 로딩/소유와 draw 책임 분리, ResourceManager의 생성·로딩·캐싱·해제 계약, Mesh/Texture/Material의 필요한 데이터.
-- **보류:** Bindless 확장, RenderGraph, 비동기 streaming/hot reload, 범용 서비스/이벤트 시스템과 전체 게임 엔진 기능.
+- **당시 보류:** Bindless 확장, RenderGraph, 비동기 streaming/hot reload, 범용 서비스/이벤트 시스템과 전체 게임 엔진 기능. RenderGraph는 2026-10-26 사용자 우선순위 변경으로 현재 활성화되었다.
 - CPU 참조가 사라졌다는 이유만으로 제출 중인 GPU 자원을 해제하지 않는다. 우선 종료 시 GPU 완료 대기 후 리소스→device 순서로 정리하는 단순 정책을 이해하고, 실행 중 삭제가 필요할 때 timeline 기반 지연 해제를 별도 과제로 선정한다.
 
 ### 10/19 오전 재검토 — 완료 증거와 다음 학습일
@@ -319,75 +329,62 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 ```json
 {
   "current_task": {
-    "id": "baseline-cpu-present-fps",
+    "id": "render-graph-resource-model-mvp",
     "status": "in_progress",
     "attempts": 0,
-    "completion_evidence": {
-      "debug_build": "10/22 현재 병합 소스에서 Visual Studio 개발 환경을 로드한 windows-debug 컴파일·링크 성공",
-      "debug_run": "1280x720 IMMEDIATE 짧은 실행, 정상 종료 code 0, FPS 657.07/1751.01/1207.29, deltaTime 1.52/0.57/0.83 ms",
-      "validation": "10/22 캡처 로그에서 warning/error 없음",
-      "remaining": "화면 내용과 resize/minimize 복귀를 사용자가 확인하고 Release 링크 성공 후 3초 워밍업+10초 관찰 범위 기록",
-      "scope": "로그로 present mode/FPS/정상 종료를 검증했으며 화면 내용과 티어링은 시각 판정하지 않음."
-    },
-    "title": "FPS 기준선 재개 · 병합 후 Debug 루프 검증",
-    "goal": "IMMEDIATE에서 기존 이미지와 frame-start FPS 표시를 눈으로 확인하고 resize/minimize 및 Release 기준선을 검증한다.",
+    "completion_evidence": null,
+    "title": "최소 Render Graph 리소스 모델 설계·첫 구현",
+    "goal": "공통 VirtualResource 계약과 첫 RenderGraphTexture 타입을 구현하고 현재 세 패스의 Read/Write 선언 자료를 수집한다.",
     "first_20_minutes": [
-      "0~10분: 병합된 Renderer.h/.cpp·VulkanDevice.cpp의 Resource 소유·graphics/compute 타입을 대조하고 남은 마커/선언 불일치를 확인한다.",
-      "10~20분: Engine UpdateDeltaTime/ResetFrameStats 흐름을 읽고 Debug 검증 명령·화면 조건·관찰 항목을 적는다."
+      "0~10분: Scene/Blur/Present와 sceneColor/depth/computeOutput/swapchain의 Read/Write·usage 표를 작성한다.",
+      "10~20분: VirtualResource, typed handle, RenderGraphTexture, imported resource의 책임과 소유권을 한 줄씩 정한다."
     ],
     "done": [
-      "사용자가 병합된 현재 소스의 Debug 빌드 명령·종료 코드·첫 오류 또는 성공 로그를 기록한다.",
-      "빌드 성공 시 기존 이미지/FPS·deltaTime 표시, resize/minimize, X 버튼 정상 종료와 validation warning/error 수를 실제 기록한다.",
-      "실패하면 재현 명령·첫 오류·다음 한 수를 남기고 미완료 유지. Release 기준선 전체 완료로 간주하지 않는다."
+      "소유권 없는 typed Render Graph handle, 공통 VirtualResource 계약, 첫 RenderGraphTexture 최소 데이터 구조가 코드에 존재한다.",
+      "Texture descriptor/usage가 공통 리소스 정보와 분리되고 기존 ResourceHandle/ResourceManager와 결합하지 않는다.",
+      "현재 세 패스의 Read/Write 선언을 저장하고 잘못된 handle/import되지 않은 외부 리소스를 검사할 수 있다.",
+      "변경 소스가 Debug로 컴파일된다. 자동 barrier, topological sort, 렌더 결과는 다음 과제로 남긴다."
     ],
-    "question": "IMMEDIATE에서 frame-start FPS의 deltaTime을 GPU 단독 렌더링 시간으로 해석할 수 없는 이유는 무엇인가?",
-    "next": "Debug 시각/resize 검증 뒤 동일 FPS 과제의 Release 링크와 1280x720/IMMEDIATE 3초 워밍업+10초 관찰을 재평가한다. compute dispatch는 이후에 진행한다.",
-    "duration_minutes": 60,
-    "minimum_minutes": 60,
-    "short_session_goal": "Debug 첫 빌드 결과와 가능한 실행 검증까지만 남긴다.",
+    "question": "VirtualResource가 물리 VulkanImage 자체가 아니라 논리 리소스의 공통 수명·사용 정보를 나타내야 하는 이유는 무엇인가?",
+    "next": "등록 순서 실행에서 리소스별 이전/다음 usage를 비교해 barrier plan을 계산한다. DependencyGraph는 재배치나 pass culling이 필요할 때 추가한다.",
+    "duration_minutes": 120,
+    "minimum_minutes": 90,
+    "short_session_goal": "Read/Write·usage 표와 네 타입의 책임을 확정하고 typed handle/VirtualResource 골격까지만 작성한다.",
     "deferred_tasks": [
       {
-        "id": "compute-blur-first-dispatch",
+        "id": "render-graph-barrier-plan",
         "status": "pending",
         "completion_evidence": null,
-        "reason": "블러 전 FPS 기준선 측정을 먼저 수행"
+        "reason": "리소스 계약과 Read/Write 자료 수집 후 진행"
       },
       {
         "id": "gltf-v3-metadata",
         "status": "pending",
         "completion_evidence": null,
-        "reason": "10/21 사용자 우선순위가 compute shader 학습으로 변경되어 대기"
-      },
-      {
-        "id": "engine-resource-ownership-design",
-        "status": "deferred",
-        "attempts": 0,
-        "completion_evidence": null,
-        "reason": "10/21 FPS 우선순위 반영. 설계 노트의 완료 증거는 없음."
+        "reason": "최소 Render Graph의 현재 세 패스 이관 뒤 모델 로딩 재개"
       }
     ],
-    "planned_date": "2026-10-23",
+    "planned_date": "2026-10-26",
     "sources": [
       {
-        "title": "Khronos Resource Management — Handles / Basic Resource Manager",
-        "url": "https://docs.vulkan.org/tutorial/latest/Building_a_Simple_Engine/Engine_Architecture/04_resource_management.html"
+        "title": "Filament FrameGraph 개요",
+        "url": "https://google.github.io/filament/notes/framegraph.html"
       },
       {
-        "title": "Khronos VkPresentModeKHR — present modes",
-        "url": "https://docs.vulkan.org/refpages/latest/refpages/source/VkPresentModeKHR.html"
+        "title": "Filament VirtualResource / Resource 공식 소스",
+        "url": "https://github.com/google/filament/blob/main/filament/src/fg/details/Resource.h"
+      },
+      {
+        "title": "Khronos Synchronization Examples",
+        "url": "https://docs.vulkan.org/guide/latest/synchronization_examples.html"
       }
     ],
-    "calendar_title": "FPS 기준선 재개 · 병합 후 Debug 검증",
+    "calendar_title": "최소 Render Graph 리소스 모델 설계·첫 구현",
     "calendar_brief": {
-      "goal": "병합된 현재 소스에서 기존 이미지 출력과 CPU/present FPS 루프를 Debug로 검증한다.",
-      "first_step": "0~10분: Resource 소유·graphics/compute 타입 대조. 10~20분: Engine FPS/reset 흐름과 Debug 검증 조건 정리.",
-      "done": "사용자가 Debug 빌드 결과와 이미지/FPS·resize/minimize·정상 종료·validation 수 기록. 실패 시 첫 오류를 남기고 미완료 유지."
-    },
-    "historical_full_done": [
-      "Debug/Release 빌드 성공",
-      "Release 1280x720/IMMEDIATE 3초 워밍업 뒤 10초 관찰 범위",
-      "Debug validation 수·CPU/present 한계 기록"
-    ]
+      "goal": "VirtualResource 공통 계약과 첫 Texture 타입으로 세 패스의 Read/Write 선언 자료를 수집한다.",
+      "first_step": "0~10분: 패스/리소스 usage 표. 10~20분: 네 타입의 책임·소유권 확정.",
+      "done": "typed handle/VirtualResource/RenderGraphTexture/import 경계와 Read/Write 저장·최소 검증이 Debug 컴파일된다."
+    }
   }
 }
 ```
@@ -405,29 +402,30 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 <!-- calendar-draft:start -->
 ## Calendar 등록 초안
 
-- 대상 학습일: 2026-10-23
-- 모드: ready_for_connector · 동작: update
-- 시간: 2026-10-23T10:00:00+09:00 ~ 2026-10-23T11:00:00+09:00
+- 대상 학습일: 2026-10-26
+- 모드: planning_only · 이번 요청에서는 Calendar 변경 없음
 
-오늘의 목표: IMMEDIATE에서 기존 이미지와 frame-start FPS 표시를 눈으로 확인하고 resize/minimize 및 Release 기준선을 검증한다.
+오늘의 목표: 공통 VirtualResource 계약과 첫 RenderGraphTexture 타입으로 현재 세 패스의 Read/Write 선언 자료를 수집한다.
 
-첫 20분 행동: 0~10분 Debug에서 이미지·창 제목·티어링 여부 확인. 10~20분 resize/minimize 복귀와 X 버튼 정상 종료 및 validation 로그 기록.
+첫 20분 행동: 0~10분 Scene/Blur/Present의 리소스 usage 표 작성. 10~20분 VirtualResource/typed handle/Texture/import 책임과 소유권 확정.
 
-완료 기준: 사용자가 Debug 빌드 결과와 이미지/FPS·resize/minimize·정상 종료·validation 수 기록. 실패 시 첫 오류를 남기고 미완료 유지.
+완료 기준: typed handle, VirtualResource, RenderGraphTexture, import 경계와 Read/Write 저장·최소 검증이 Debug 컴파일된다. 자동 barrier와 DependencyGraph는 다음 과제다.
 
 학습 자료
-Khronos Resource Management — Handles / Basic Resource Manager
-https://docs.vulkan.org/tutorial/latest/Building_a_Simple_Engine/Engine_Architecture/04_resource_management.html
-Khronos VkPresentModeKHR — present modes
-https://docs.vulkan.org/refpages/latest/refpages/source/VkPresentModeKHR.html
+Filament FrameGraph 개요
+https://google.github.io/filament/notes/framegraph.html
+Filament VirtualResource / Resource 공식 소스
+https://github.com/google/filament/blob/main/filament/src/fg/details/Resource.h
+Khronos Synchronization Examples
+https://docs.vulkan.org/guide/latest/synchronization_examples.html
 
 이해 확인 질문
-IMMEDIATE에서 frame-start FPS의 deltaTime을 GPU 단독 렌더링 시간으로 해석할 수 없는 이유는 무엇인가?
+VirtualResource가 물리 VulkanImage 자체가 아니라 논리 리소스의 공통 수명·사용 정보를 나타내야 하는 이유는 무엇인가?
 
 다음 단계
-Debug 시각/resize 검증 뒤 동일 FPS 과제의 Release 링크와 1280x720/IMMEDIATE 3초 워밍업+10초 관찰을 재평가한다. compute dispatch는 이후에 진행한다.
+등록 순서 실행에서 리소스별 이전/다음 usage를 비교해 barrier plan을 계산한다. DependencyGraph는 재배치나 pass culling이 필요할 때 추가한다.
 
-[DaylightEngine-study:v1:2026-10-23:vulkan]
+[DaylightEngine-study:v1:2026-10-26:vulkan]
 
 --- 자동 계획 끝 ---
 
