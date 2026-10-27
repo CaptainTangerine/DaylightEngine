@@ -47,34 +47,18 @@ namespace Dlight
 
     std::unique_ptr<VulkanImage> TextureResource::CreateImage2D(Image& image)
     {
-        VkImageCreateInfo imageInfo{};
-        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-        imageInfo.imageType = VK_IMAGE_TYPE_2D;
-        imageInfo.format = image.GetFormat();
-        imageInfo.extent = {
+		FVulkanImageDesc imageDesc{};
+		imageDesc.format = image.GetFormat();
+		imageDesc.extent = {
             static_cast<uint32>(image.GetWidth()),
             static_cast<uint32>(image.GetHeight()),
             1
         };
-        imageInfo.mipLevels = 1;
-        imageInfo.arrayLayers = 1;
-        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-        imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		imageDesc.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 
-        VkImageViewCreateInfo imageViewInfo{};
-        imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        imageViewInfo.format = image.GetFormat();
-        imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        imageViewInfo.subresourceRange.levelCount = 1;
-        imageViewInfo.subresourceRange.layerCount = 1;
+		auto gpuImage = std::make_unique<VulkanImage>(device, imageDesc);
 
-        auto gpuImage = std::make_unique<VulkanImage>(device, imageInfo, imageViewInfo);
-
-        device.UploadImage(*gpuImage, image.GetData(), image.GetSize(), EResourceState::Undefined, EResourceState::FragmentShaderRead);
+        device.UploadImage(*gpuImage, image.GetData(), image.GetSize(), EImageState::SampledRead);
 
         return std::move(gpuImage);
     }

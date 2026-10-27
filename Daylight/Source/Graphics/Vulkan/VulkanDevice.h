@@ -4,7 +4,7 @@
 #include <Volk/volk.h>
 #include <vma/vk_mem_alloc.h>
 
-#include "VulkanResourceState.h"
+#include "Utils/ResourceState.h"
 #include "VulkanSwapchain.h"
 
 struct SDL_Window;
@@ -65,12 +65,12 @@ namespace Dlight
 
 	public:
 		// CPU Data -> DeviceLocal
-		void UploadImage(VulkanImage& destination, const void* data, VkDeviceSize byteSize, EResourceState beforeState, EResourceState finalState);
-		void UploadBuffer(VulkanBuffer& destination, const void* data, VkDeviceSize size, VkDeviceSize destinationOffset, EResourceState beforeState, EResourceState finalState);
+		void UploadImage(VulkanImage& destination, const void* data, VkDeviceSize byteSize, EImageState finalState);
+		void UploadBuffer(VulkanBuffer& destination, const void* data, VkDeviceSize size, VkDeviceSize destinationOffset, EBufferState finalState);
 
 	private:
-		void TransitionImage(VkCommandBuffer commandBuufer, const VulkanImage& image, EResourceState _src, EResourceState _dst);
-		void TransitionBuffer(VkCommandBuffer commandBuffer, const VulkanBuffer& buffer, EResourceState _src, EResourceState _dst);
+		void TransitionImage(VkCommandBuffer commandBuffer, const VulkanImage& image, EImageState srcState, EImageState dstState);
+		void TransitionBuffer(VkCommandBuffer commandBuffer, const VulkanBuffer& buffer, EBufferState srcState, EBufferState dstState);
 
 	private:
 		void Initialize(SDL_Window* window, uint32 width, uint32 height);

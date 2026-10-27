@@ -154,47 +154,26 @@ namespace Dlight
 	{
 		DestroySceneColorImages();
 
-		VkImageCreateInfo imageInfo{};
-		imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		imageInfo.imageType = VK_IMAGE_TYPE_2D;
-		imageInfo.format = VulkanSwapchain::swapchainFormat;
-		imageInfo.extent = { width, height, 1 };
-		imageInfo.mipLevels = 1;
-		imageInfo.arrayLayers = 1;
-		imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-		imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		imageInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;;
-		imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		FVulkanImageDesc imageDesc{};
+		imageDesc.format = VulkanSwapchain::swapchainFormat;
+		imageDesc.extent = { width, height, 1 };
+		imageDesc.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
-		VkImageCreateInfo computeOutputImageInfo = imageInfo;
-		computeOutputImageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-		computeOutputImageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+		FVulkanImageDesc computeOutputImageDesc = imageDesc;
+		computeOutputImageDesc.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		computeOutputImageDesc.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 
-		VkImageCreateInfo horizontalBlurImageInfo = computeOutputImageInfo;
-		horizontalBlurImageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-
-		VkImageViewCreateInfo imageViewInfo{};
-		imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		imageViewInfo.format = imageInfo.format;
-		imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		imageViewInfo.subresourceRange.baseMipLevel = 0;
-		imageViewInfo.subresourceRange.levelCount = 1;
-		imageViewInfo.subresourceRange.baseArrayLayer = 0;
-		imageViewInfo.subresourceRange.layerCount = 1;
-
-		VkImageViewCreateInfo computeOutputImageViewInfo = imageViewInfo;
-		computeOutputImageViewInfo.format = computeOutputImageInfo.format;
+		FVulkanImageDesc horizontalBlurImageDesc = computeOutputImageDesc;
+		horizontalBlurImageDesc.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 
 		sceneColorImages.reserve(VulkanDevice::MaxFramesInFlight);
 		horizontalBlurImages.reserve(VulkanDevice::MaxFramesInFlight);
 		computeOutputImages.reserve(VulkanDevice::MaxFramesInFlight);
 		for (uint32 frameSlot = 0; frameSlot < VulkanDevice::MaxFramesInFlight; ++frameSlot)
 		{
-			sceneColorImages.push_back(std::make_unique<VulkanImage>(device, imageInfo, imageViewInfo));
-			horizontalBlurImages.push_back(std::make_unique<VulkanImage>(device, horizontalBlurImageInfo, computeOutputImageViewInfo));
-			computeOutputImages.push_back(std::make_unique<VulkanImage>(device, computeOutputImageInfo, computeOutputImageViewInfo));
+			sceneColorImages.push_back(std::make_unique<VulkanImage>(device, imageDesc));
+			horizontalBlurImages.push_back(std::make_unique<VulkanImage>(device, horizontalBlurImageDesc));
+			computeOutputImages.push_back(std::make_unique<VulkanImage>(device, computeOutputImageDesc));
 		}
 
 		return true;
@@ -219,36 +198,17 @@ namespace Dlight
 
 		DestroyDepthStencilImages();
 
-		VkImageCreateInfo depthStencilCreateInfo = {};
-		depthStencilCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-		depthStencilCreateInfo.imageType = VK_IMAGE_TYPE_2D;
-		depthStencilCreateInfo.format = depthStencilFormat;
-		depthStencilCreateInfo.extent.width = width;
-		depthStencilCreateInfo.extent.height = height;
-		depthStencilCreateInfo.extent.depth = 1;
-		depthStencilCreateInfo.mipLevels = 1;
-		depthStencilCreateInfo.arrayLayers = 1;
-		depthStencilCreateInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-		depthStencilCreateInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
-		depthStencilCreateInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-		depthStencilCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		depthStencilCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-
-		VkImageViewCreateInfo imageViewInfo{};
-		imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		imageViewInfo.format = depthStencilFormat;
-		imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-		imageViewInfo.subresourceRange.baseMipLevel = 0;
-		imageViewInfo.subresourceRange.levelCount = 1;
-		imageViewInfo.subresourceRange.baseArrayLayer = 0;
-		imageViewInfo.subresourceRange.layerCount = 1;
+		FVulkanImageDesc depthStencilDesc{};
+		depthStencilDesc.format = depthStencilFormat;
+		depthStencilDesc.extent = { width, height, 1 };
+		depthStencilDesc.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		depthStencilDesc.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
 
 		depthStencilImages.reserve(VulkanDevice::MaxFramesInFlight);
 		for (uint32 frameSlot = 0; frameSlot < VulkanDevice::MaxFramesInFlight; ++frameSlot)
 		{
 			depthStencilImages.push_back(
-				std::make_unique<VulkanImage>(device, depthStencilCreateInfo, imageViewInfo));
+				std::make_unique<VulkanImage>(device, depthStencilDesc));
 		}
 
 		return true;

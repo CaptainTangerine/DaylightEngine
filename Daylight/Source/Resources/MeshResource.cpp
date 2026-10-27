@@ -61,7 +61,7 @@ namespace Dlight
 
         auto buffer = std::make_unique<VulkanBuffer>(device, desc);
 
-        device.UploadBuffer(*buffer, data, byteSize, 0, EResourceState::Undefined, EResourceState::VertexBuffer);
+        device.UploadBuffer(*buffer, data, byteSize, 0, EBufferState::VertexRead);
 
         return buffer;
     }
@@ -75,7 +75,7 @@ namespace Dlight
 
         auto buffer = std::make_unique<VulkanBuffer>(device, desc);
 
-        device.UploadBuffer(*buffer, data, byteSize, 0, EResourceState::Undefined, EResourceState::IndexBuffer);
+        device.UploadBuffer(*buffer, data, byteSize, 0, EBufferState::IndexRead);
 
         return buffer;
     }

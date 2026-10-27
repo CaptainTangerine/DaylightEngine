@@ -1,7 +1,14 @@
 # Vulkan Renderer · 학습 계획
 
-> 갱신: 2026-10-26 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
+> 갱신: 2026-10-27 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
 > 코드 존재, 과거 작업 보고, 현재 빌드/실행·validation 증거를 구분한다.
+
+### 2026-10-27 사용자 요청 구현·검증 — Image/Buffer 상태 분리
+
+- 공통 `EResourceState`, `FVulkanResourceState`, `ConvertResourceState`를 제거하고 `Utils/ResourceState.h`의 `EImageState`와 `EBufferState`로 분리했다. RenderGraph의 현재 이미지 전용 Read/Write 선언은 `EImageState`를 사용한다.
+- `VulkanDevice`의 이미지/버퍼 업로드 및 transition 경로가 서로 다른 상태 타입을 받으며, 새 버퍼 업로드에 의미 없던 `Undefined` 인자를 제거했다. upload 내부의 copy 상태는 각 리소스 전용 enum으로 표현한다.
+- `StorageRead`/`StorageWrite` 명칭은 유지했다. storage는 compute stage 자체가 아니라 shader resource access 종류이며 graphics shader에서도 사용할 수 있으므로 `ComputeRead`/`ComputeWrite`보다 의미가 정확하다.
+- Visual Studio 개발자 환경에서 변경된 `VulkanDevice.cpp`, `MeshResource.cpp`, `TextureResource.cpp`의 Debug 컴파일 성공을 확인했다. 전체 빌드는 사용자가 작성 중인 `RenderGraph::AddPass`의 기존 미완성 `return *` 구문에서 중단됐으므로 링크·실행·validation은 미검증이다.
 
 ### 2026-10-24 사용자 요청 구현·검증 — RAII GPU 프로파일러
 

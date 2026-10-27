@@ -4,28 +4,40 @@
 
 Dlight::VulkanImage::VulkanImage(
 	VulkanDevice& _device,
-	const VkImageCreateInfo& imageCreateInfo,
-	const VkImageViewCreateInfo& imageViewCreateInfo)
+	const FVulkanImageDesc& desc)
 	: device(_device)
-	, format(imageCreateInfo.format)
-	, width(imageCreateInfo.extent.width)
-	, height(imageCreateInfo.extent.height)
-	, usage(imageCreateInfo.usage)
+	, format(desc.format)
+	, width(desc.extent.width)
+	, height(desc.extent.height)
+	, usage(desc.usage)
 {
-	if (imageCreateInfo.sType != VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO ||
-		imageViewCreateInfo.sType != VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO ||
-		imageCreateInfo.extent.width == 0 || imageCreateInfo.extent.height == 0 ||
-		imageCreateInfo.extent.depth == 0 ||
-		imageCreateInfo.format == VK_FORMAT_UNDEFINED ||
-		imageViewCreateInfo.format == VK_FORMAT_UNDEFINED ||
-		imageCreateInfo.usage == 0)
+	if (desc.extent.width == 0 || desc.extent.height == 0 ||
+		desc.extent.depth == 0 ||
+		desc.format == VK_FORMAT_UNDEFINED ||
+		desc.mipLevels == 0 || desc.arrayLayers == 0 ||
+		desc.usage == 0 || desc.aspectMask == 0)
 	{
 		DL_LOG_ERROR("Invalid image description");
 		std::abort();
 	}
 
+	VkImageCreateInfo imageCreateInfo{};
+	imageCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	imageCreateInfo.flags = desc.flags;
+	imageCreateInfo.imageType = desc.imageType;
+	imageCreateInfo.format = desc.format;
+	imageCreateInfo.extent = desc.extent;
+	imageCreateInfo.mipLevels = desc.mipLevels;
+	imageCreateInfo.arrayLayers = desc.arrayLayers;
+	imageCreateInfo.samples = desc.samples;
+	imageCreateInfo.tiling = desc.tiling;
+	imageCreateInfo.usage = desc.usage;
+	imageCreateInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	imageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+
 	VmaAllocationCreateInfo allocInfo{};
-	allocInfo.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+	allocInfo.flags = desc.allocationFlags;
+	allocInfo.usage = desc.memoryUsage;
 
 	if (VK_SUCCESS != vmaCreateImage(device.GetVmaAllocator(), &imageCreateInfo, &allocInfo, &image, &allocation, nullptr))
 	{
@@ -33,8 +45,16 @@ Dlight::VulkanImage::VulkanImage(
 		std::abort();
 	}
 
-	VkImageViewCreateInfo viewInfo = imageViewCreateInfo;
+	VkImageViewCreateInfo viewInfo{};
+	viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
 	viewInfo.image = image;
+	viewInfo.viewType = desc.viewType;
+	viewInfo.format = desc.format;
+	viewInfo.subresourceRange.aspectMask = desc.aspectMask;
+	viewInfo.subresourceRange.baseMipLevel = 0;
+	viewInfo.subresourceRange.levelCount = desc.mipLevels;
+	viewInfo.subresourceRange.baseArrayLayer = 0;
+	viewInfo.subresourceRange.layerCount = desc.arrayLayers;
 
 	if (VK_SUCCESS != vkCreateImageView(device.GetDevice(), &viewInfo, nullptr, &imageView))
 	{

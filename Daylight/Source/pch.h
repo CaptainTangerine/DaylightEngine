@@ -1,8 +1,7 @@
 #pragma once
 
 #include <cstdlib>
-
-// STL
+#include <cassert>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -13,10 +12,13 @@
 #include <utility>
 #include <vector>
 #include <array>
+#include <map>
 #include <unordered_map>
 #include <typeinfo>
 #include <typeindex>
 #include <algorithm>
+#include <variant>
+
 #include <memory>
 
 // Windows COM

@@ -248,7 +248,7 @@ namespace Dlight
 		++nextSignalValue;
 	}
 
-	void VulkanDevice::UploadImage(VulkanImage& destination, const void* data, VkDeviceSize byteSize, EResourceState beforeState, EResourceState finalState)
+	void VulkanDevice::UploadImage(VulkanImage& destination, const void* data, VkDeviceSize byteSize, EImageState finalState)
 	{
 		if (nullptr == data || byteSize == 0)
 		{
@@ -320,7 +320,7 @@ namespace Dlight
 		}
 
 		// 이미지 레이아웃 전환 
-		TransitionImage(commandBuffer, destination, beforeState, EResourceState::CopyDestination);
+		TransitionImage(commandBuffer, destination, EImageState::Undefined, EImageState::CopyDestination);
 		
 		VkBufferImageCopy region{};
 		region.bufferRowLength = 0;
@@ -339,7 +339,7 @@ namespace Dlight
 
 		vkCmdCopyBufferToImage(commandBuffer, stagingBuffer.GetBuffer(), destination.GetImage(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 		
-		TransitionImage(commandBuffer, destination, EResourceState::CopyDestination, finalState);
+		TransitionImage(commandBuffer, destination, EImageState::CopyDestination, finalState);
 
 		if (VK_SUCCESS != vkEndCommandBuffer(commandBuffer))
 		{
@@ -371,21 +371,90 @@ namespace Dlight
 		vkDestroyCommandPool(device, commandPool, nullptr);
 	}
 
-	void VulkanDevice::TransitionImage(VkCommandBuffer commandBuufer, const VulkanImage& image, EResourceState _src, EResourceState _dst)
+	void VulkanDevice::TransitionImage(VkCommandBuffer commandBuffer, const VulkanImage& image, EImageState srcState, EImageState dstState)
 	{
-		auto src = ConvertResourceState(_src);
-		auto dst = ConvertResourceState(_dst);
-
 		VkImageMemoryBarrier2 barrier = {};
 		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2;
-		barrier.srcStageMask = src.stage;
-		barrier.dstStageMask = dst.stage;
-		barrier.srcAccessMask = src.access;
-		barrier.dstAccessMask = dst.access;
-		barrier.oldLayout = src.layout;
-		barrier.newLayout = dst.layout;
+
+		switch (srcState)
+		{
+		case EImageState::Undefined:
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_NONE;
+			barrier.srcAccessMask = VK_ACCESS_2_NONE;
+			barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+			break;
+		case EImageState::ColorAttachmentWrite:
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+			barrier.oldLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			break;
+		case EImageState::SampledRead:
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+			barrier.oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			break;
+		case EImageState::StorageRead:
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
+			barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+			break;
+		case EImageState::StorageWrite:
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+			barrier.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
+			break;
+		case EImageState::CopySource:
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+			barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			break;
+		case EImageState::CopyDestination:
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+			barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+			break;
+		}
+
+		switch (dstState)
+		{
+		case EImageState::Undefined:
+			DL_LOG_ERROR("EImageState::Undefined cannot be a transition destination");
+			std::abort();
+		case EImageState::ColorAttachmentWrite:
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT;
+			barrier.dstAccessMask = VK_ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT;
+			barrier.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+			break;
+		case EImageState::SampledRead:
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+			barrier.dstAccessMask = VK_ACCESS_2_SHADER_SAMPLED_READ_BIT;
+			barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			break;
+		case EImageState::StorageRead:
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+			barrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
+			barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+			break;
+		case EImageState::StorageWrite:
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+			barrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+			barrier.newLayout = VK_IMAGE_LAYOUT_GENERAL;
+			break;
+		case EImageState::CopySource:
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+			barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+			barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+			break;
+		case EImageState::CopyDestination:
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+			barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+			barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+			break;
+		}
 
 		barrier.image = image.GetImage();
+		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 
 		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		barrier.subresourceRange.baseMipLevel = 0;
@@ -398,10 +467,10 @@ namespace Dlight
 		depInfo.imageMemoryBarrierCount = 1;
 		depInfo.pImageMemoryBarriers = &barrier;
 
-		vkCmdPipelineBarrier2(commandBuufer, &depInfo);
+		vkCmdPipelineBarrier2(commandBuffer, &depInfo);
 	}
 
-	void VulkanDevice::UploadBuffer(VulkanBuffer& destination, const void* data, VkDeviceSize size, VkDeviceSize destinationOffset, EResourceState beforeState, EResourceState finalState)
+	void VulkanDevice::UploadBuffer(VulkanBuffer& destination, const void* data, VkDeviceSize size, VkDeviceSize destinationOffset, EBufferState finalState)
 	{
 		if (nullptr == data || size == 0 || destinationOffset + size > destination.GetSize())
 		{
@@ -471,16 +540,6 @@ namespace Dlight
 			std::abort();
 		}
 
-		if (beforeState != EResourceState::Undefined)
-		{
-			TransitionBuffer(
-				commandBuffer,
-				destination,
-				beforeState,
-				EResourceState::CopyDestination
-			);
-		}
-
 		// 버퍼 복사 명령
 		VkBufferCopy copyRegion = {};
 		copyRegion.srcOffset = 0;
@@ -490,7 +549,7 @@ namespace Dlight
 		vkCmdCopyBuffer(commandBuffer, stagingBuffer.GetBuffer(), destination.GetBuffer(), 1, &copyRegion);
 
 		// 복사 -> GPU read 베리어 설정
-		TransitionBuffer(commandBuffer, destination, EResourceState::CopyDestination, finalState);
+		TransitionBuffer(commandBuffer, destination, EBufferState::CopyDestination, finalState);
 
 		if (VK_SUCCESS != vkEndCommandBuffer(commandBuffer))
 		{
@@ -523,20 +582,77 @@ namespace Dlight
 
 	}
 
-	void VulkanDevice::TransitionBuffer(VkCommandBuffer commandBuffer, const VulkanBuffer& buffer, EResourceState _src, EResourceState _dst)
+	void VulkanDevice::TransitionBuffer(VkCommandBuffer commandBuffer, const VulkanBuffer& buffer, EBufferState srcState, EBufferState dstState)
 	{
 		// 이전 접근이 끝난 뒤 다음 접근이 시작되도록 버퍼 메모리 의존성을 설정한다.
 		// GPU 정점 읽는 단계전에 복사가 끝나야함
 
-		auto src = ConvertResourceState(_src);
-		auto dst = ConvertResourceState(_dst);
-
 		VkBufferMemoryBarrier2 barrier = {};
 		barrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER_2;
-		barrier.srcStageMask = src.stage;
-		barrier.srcAccessMask = src.access;
-		barrier.dstStageMask = dst.stage;
-		barrier.dstAccessMask = dst.access;
+
+		switch (srcState)
+		{
+		case EBufferState::VertexRead:
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_VERTEX_ATTRIBUTE_INPUT_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT;
+			break;
+		case EBufferState::IndexRead:
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_INDEX_INPUT_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_INDEX_READ_BIT;
+			break;
+		case EBufferState::StorageRead:
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
+			break;
+		case EBufferState::StorageWrite:
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+			break;
+		case EBufferState::IndirectRead:
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+			break;
+		case EBufferState::CopySource:
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+			break;
+		case EBufferState::CopyDestination:
+			barrier.srcStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+			barrier.srcAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+			break;
+		}
+
+		switch (dstState)
+		{
+		case EBufferState::VertexRead:
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_VERTEX_ATTRIBUTE_INPUT_BIT;
+			barrier.dstAccessMask = VK_ACCESS_2_VERTEX_ATTRIBUTE_READ_BIT;
+			break;
+		case EBufferState::IndexRead:
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_INDEX_INPUT_BIT;
+			barrier.dstAccessMask = VK_ACCESS_2_INDEX_READ_BIT;
+			break;
+		case EBufferState::StorageRead:
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+			barrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_READ_BIT;
+			break;
+		case EBufferState::StorageWrite:
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT | VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT;
+			barrier.dstAccessMask = VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT;
+			break;
+		case EBufferState::IndirectRead:
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_DRAW_INDIRECT_BIT;
+			barrier.dstAccessMask = VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT;
+			break;
+		case EBufferState::CopySource:
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+			barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_READ_BIT;
+			break;
+		case EBufferState::CopyDestination:
+			barrier.dstStageMask = VK_PIPELINE_STAGE_2_COPY_BIT;
+			barrier.dstAccessMask = VK_ACCESS_2_TRANSFER_WRITE_BIT;
+			break;
+		}
 		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
 		barrier.buffer = buffer.GetBuffer();
