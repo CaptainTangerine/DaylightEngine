@@ -134,6 +134,8 @@ namespace Dlight
 
 		bRequireRecreateSwapchain = false;
 		recreated = true;
+
+
 		return true;
 	}
 
@@ -178,7 +180,7 @@ namespace Dlight
 		VkSemaphoreSubmitInfo imageAquireWaitInfo = {};
 		imageAquireWaitInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO;
 		imageAquireWaitInfo.semaphore = res.imageAcquiredSemaphore;
-		imageAquireWaitInfo.stageMask = VK_PIPELINE_STAGE_2_BLIT_BIT;
+		imageAquireWaitInfo.stageMask = VK_PIPELINE_STAGE_2_ALL_TRANSFER_BIT;
 
 		std::vector<VkSemaphoreSubmitInfo> semaphoreSignals;
 		semaphoreSignals.resize(2);

@@ -109,6 +109,10 @@ namespace Dlight
         void BindExternal(RenderGraphImageHandle handle, VkImage externalResource);
         void BindExternal(RenderGraphBufferHandle handle, VkBuffer externalResource);
 
+        VkImage GetImage(RenderGraphImageHandle handle) const;
+        VkImageView GetImageView(RenderGraphImageHandle handle) const;
+
+        void Reset();
         void Execute(VkCommandBuffer commandBuffer);
 
     private:

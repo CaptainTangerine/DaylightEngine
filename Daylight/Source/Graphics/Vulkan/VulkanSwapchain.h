@@ -33,6 +33,8 @@ namespace Dlight
 		void Shutdown();
 
 	private:
+		VkPresentModeKHR ChoosePresentMode() const;
+
 		VulkanDevice& device;
 		VkSwapchainKHR swapchain = { VK_NULL_HANDLE };
 		

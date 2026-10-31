@@ -184,19 +184,19 @@ namespace Dlight
 			return;
 		}
 
-		const float fps = 1.0f / deltaTime;
-
-		std::ostringstream title;
-		title << std::fixed << std::setprecision(2)
-			<< "Daylight | " << fps << " FPS | "
-			<< deltaTime * 1000.0f << " ms dt";
-
-		const std::string titleText = title.str();
-		SDL_SetWindowTitle(window, titleText.c_str());
-
 		const auto now = FrameClock::now();
 		if (now - logSampleStart >= std::chrono::seconds(1))
 		{
+			const float fps = 1.0f / deltaTime;
+			const float frameTime = deltaTime * 1000.0f;
+
+			std::ostringstream title;
+			title << std::fixed << std::setprecision(2)
+				<< "Daylight | " << fps << " FPS | "
+				<< frameTime << " ms";
+
+			const std::string titleText = title.str();
+			SDL_SetWindowTitle(window, titleText.c_str());
 			DL_LOG_INFO(titleText);
 			logSampleStart = now;
 		}

@@ -15,6 +15,41 @@ namespace Dlight
 		Shutdown();
 	}
 
+	VkPresentModeKHR VulkanSwapchain::ChoosePresentMode() const
+	{
+		uint32 presentModeCount = 0;
+		if (vkGetPhysicalDeviceSurfacePresentModesKHR(
+			device.GetPhysicalDevice(),
+			device.GetSurface(),
+			&presentModeCount,
+			nullptr) != VK_SUCCESS)
+		{
+			DL_LOG_ERROR("Failed to get present mode count");
+			std::abort();
+		}
+
+		std::vector<VkPresentModeKHR> presentModes(presentModeCount);
+		if (vkGetPhysicalDeviceSurfacePresentModesKHR(
+			device.GetPhysicalDevice(),
+			device.GetSurface(),
+			&presentModeCount,
+			presentModes.data()) != VK_SUCCESS)
+		{
+			DL_LOG_ERROR("Failed to get present modes");
+			std::abort();
+		}
+
+		for (VkPresentModeKHR presentMode : presentModes)
+		{
+			if (presentMode == VK_PRESENT_MODE_IMMEDIATE_KHR)
+			{
+				return presentMode;
+			}
+		}
+
+		return VK_PRESENT_MODE_FIFO_KHR;
+	}
+
 	bool VulkanSwapchain::Initialize(uint32 width, uint32 height)
 	{
 		if (width == 0 || height == 0)
@@ -113,7 +148,16 @@ namespace Dlight
 		swapchainCreateInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 		swapchainCreateInfo.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
 		swapchainCreateInfo.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-		swapchainCreateInfo.presentMode = VK_PRESENT_MODE_FIFO_KHR;
+		swapchainCreateInfo.presentMode = ChoosePresentMode();
+
+		if (swapchainCreateInfo.presentMode == VK_PRESENT_MODE_IMMEDIATE_KHR)
+		{
+			DL_LOG_INFO("Swapchain present mode: IMMEDIATE (VSync off)");
+		}
+		else
+		{
+			DL_LOG_WARN("IMMEDIATE present mode is unavailable; falling back to FIFO");
+		}
 		
 		if (vkCreateSwapchainKHR(device.GetDevice(), &swapchainCreateInfo, nullptr, &swapchain) != VK_SUCCESS)
 		{

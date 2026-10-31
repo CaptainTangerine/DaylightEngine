@@ -9,7 +9,6 @@ namespace Dlight
 	class VulkanDevice;
 	class VulkanSwapchain;
 	class TextureResource;
-	class VulkanImage;
 	class ResourceManager;
 	class BlurPass;
 	class GeometryPass;
@@ -26,17 +25,23 @@ namespace Dlight
 
 	public:
 		void OnResize(uint32 width, uint32 height);
-
 		void Render();
 
 	private:
+		struct FBlurGraphOutput
+		{
+			RenderGraphImageHandle temp;
+			RenderGraphImageHandle output;
+		};
+
 		void Initialize();
 		void BuildRenderGraph();
 
-		void Shutdown();
+		RenderGraphImageHandle AddImagePass(VkExtent2D renderExtent);
+		FBlurGraphOutput AddBlurPass(RenderGraphImageHandle input, VkExtent2D renderExtent);
+		void AddPresentPass(RenderGraphImageHandle input, VkExtent2D renderExtent);
 
-		void TransitionPresentPassImages(VkCommandBuffer commandBuffer);
-		void CopyToPresentImage(VkCommandBuffer commandBuffer, VkImage finalImage);
+		void Shutdown();
 
 	private:
 		VulkanDevice& device;
@@ -49,17 +54,6 @@ namespace Dlight
 		std::unique_ptr<Dlight::GeometryPass> geometryPass = { nullptr };
 		std::unique_ptr<Dlight::ImagePass> imagePass = { nullptr };
 		std::unique_ptr<Dlight::BlurPass> blurPass = { nullptr };
-
-		// SceneColor Image
-		std::vector<std::unique_ptr<VulkanImage>> sceneColorImages;
-
-		std::vector<std::unique_ptr<VulkanImage>> horizontalBlurImages;
-
-		// ComputeOuput Image
-		std::vector<std::unique_ptr<VulkanImage>> computeOutputImages;
-
-		// Default depth-stencil images
-		std::vector<std::unique_ptr<VulkanImage>> depthStencilImages;
 
 		// 테스트 텍스처
 		std::unique_ptr<TextureResource> testTexture = { nullptr };

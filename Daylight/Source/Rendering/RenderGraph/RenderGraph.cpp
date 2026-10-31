@@ -168,6 +168,31 @@ namespace Dlight
 		resource.physicalResource = externalResource;
 	}
 
+	VkImage RenderGraph::GetImage(RenderGraphImageHandle handle) const
+	{
+		const RenderGraphResourceID& id = handle.GetID();
+		const RenderGraphTextureResource& resource = std::get<RenderGraphTextureResource>(resources[id.index]);
+		return GetPhysicalImage(resource);
+	}
+
+	VkImageView RenderGraph::GetImageView(RenderGraphImageHandle handle) const
+	{
+		const RenderGraphResourceID& id = handle.GetID();
+		const RenderGraphTextureResource& texture = std::get<RenderGraphTextureResource>(resources[id.index]);
+		const FInternalRenderGraphTexture& resource = std::get<FInternalRenderGraphTexture>(texture);
+		return resource.physicalResource->GetImageView();
+	}
+
+	void RenderGraph::Reset()
+	{
+		passes.clear();
+		resources.clear();
+		initialBarriers.clear();
+		frameStartBarriers.clear();
+		finalBarriers.clear();
+		hasExecuted = false;
+	}
+
 	void RenderGraph::Execute(VkCommandBuffer commandBuffer)
 	{
 		if (hasExecuted)
