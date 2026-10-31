@@ -90,8 +90,8 @@ void Dlight::VulkanGraphicsPipeline::Initialize(const FGraphicsPipelineDesc& des
 	// 6
 	VkPipelineDepthStencilStateCreateInfo depthStencilInfo = {};
 	depthStencilInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-	depthStencilInfo.depthTestEnable = VK_TRUE;
-	depthStencilInfo.depthWriteEnable = VK_TRUE;
+	depthStencilInfo.depthTestEnable = desc.depthFormat != VK_FORMAT_UNDEFINED;
+	depthStencilInfo.depthWriteEnable = desc.depthFormat != VK_FORMAT_UNDEFINED;
 	depthStencilInfo.depthCompareOp = VK_COMPARE_OP_LESS;
 	depthStencilInfo.stencilTestEnable = VK_FALSE;
 

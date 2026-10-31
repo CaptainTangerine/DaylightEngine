@@ -58,7 +58,7 @@ namespace Dlight
 
 		auto gpuImage = std::make_unique<VulkanImage>(device, imageDesc);
 
-        device.UploadImage(*gpuImage, image.GetData(), image.GetSize(), EImageState::SampledRead);
+        device.UploadImage(*gpuImage, image.GetData(), image.GetSize(), EImageState::FragmentSampledRead);
 
         return std::move(gpuImage);
     }

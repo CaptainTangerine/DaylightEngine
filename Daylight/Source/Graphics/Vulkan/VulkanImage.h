@@ -32,6 +32,11 @@ namespace Dlight
 		VulkanImage(VulkanDevice& _device, const FVulkanImageDesc& desc);
 		~VulkanImage();
 
+		VulkanImage(const VulkanImage&) = delete;
+		VulkanImage& operator=(const VulkanImage&) = delete;
+		VulkanImage(VulkanImage&&) = delete;
+		VulkanImage& operator=(VulkanImage&&) = delete;
+
 	public:
 		VkImage GetImage() const { return image; };
 		VkImageView GetImageView() const { return imageView; };

@@ -48,6 +48,7 @@ namespace Dlight
 		FFrameResource& GetCurrentFrameResource() { return frameResources[frameIndex % MaxFramesInFlight]; }
 		const FFrameResource& GetCurrentFrameResource() const { return frameResources[frameIndex % MaxFramesInFlight]; }
 		const VkImage GetCurrentSwapchainImage() const { return swapchain->GetSwapchianImage(imageIndex); };
+		const VkImageView GetCurrentSwapchainImageView() const { return swapchain->GetSwapchainImageView(imageIndex); }
 
 		VkDescriptorSetLayout GetBindlessLayout() const { return bindlessLayout; }
 		VkDescriptorSet GetBindlessSet() const { return bindlessSet; }

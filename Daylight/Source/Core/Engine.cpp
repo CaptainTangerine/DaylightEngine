@@ -8,6 +8,7 @@
 #include <Graphics/Vulkan/VulkanDevice.h>
 #include <Graphics/Vulkan/VulkanSwapchain.h>
 #include <Rendering/Renderer.h>
+#include <Resources/ResourceManager.h>
 #include <Utils/Image.h>
 
 namespace Dlight
@@ -64,7 +65,8 @@ namespace Dlight
 		width = static_cast<uint32>(pixelWidth);
 		height = static_cast<uint32>(pixelHeight);
 
-		renderer = std::make_unique<Renderer>(*vulkanDevice);
+		resourceManager = std::make_unique<ResourceManager>();
+		renderer = std::make_unique<Renderer>(*vulkanDevice, *resourceManager);
 	}
 
 	void Engine::SetWindowIcon()
@@ -205,6 +207,7 @@ namespace Dlight
 		vkDeviceWaitIdle(vulkanDevice->GetDevice());
 
 		renderer.reset();
+		resourceManager.reset();
 		vulkanDevice.reset();
 
 		if (window)

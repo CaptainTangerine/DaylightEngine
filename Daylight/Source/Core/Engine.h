@@ -8,6 +8,7 @@ namespace Dlight
 {
 	class  VulkanDevice;
 	class  Renderer;
+	class  ResourceManager;
 
 	class Engine
 	{
@@ -41,6 +42,7 @@ namespace Dlight
 		float deltaTime = { 0.0f };
 
 		std::unique_ptr<VulkanDevice> vulkanDevice = { nullptr };
+		std::unique_ptr<ResourceManager> resourceManager = { nullptr };
 		std::unique_ptr<Renderer>	  renderer = { nullptr };
 
 	};
