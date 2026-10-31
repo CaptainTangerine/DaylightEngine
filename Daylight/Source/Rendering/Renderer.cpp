@@ -118,7 +118,7 @@ namespace Dlight
 			},
 			[this, renderExtent](VkCommandBuffer commandBuffer, const FBlurHorizontalPassData&)
 			{
-				GPUProfiler::Scope scope(device.GetGPUProfiler(), "BlurHorizontal");
+				GPUProfiler::Scope scope(device.GetGPUProfiler(), "Blur");
 				blurPass->ExecuteHorizontal(commandBuffer, renderExtent);
 			});
 
@@ -138,7 +138,7 @@ namespace Dlight
 			},
 			[this, renderExtent](VkCommandBuffer commandBuffer, const FBlurVerticalPassData&)
 			{
-				GPUProfiler::Scope scope(device.GetGPUProfiler(), "BlurVertical");
+				GPUProfiler::Scope scope(device.GetGPUProfiler(), "Blur");
 				blurPass->ExecuteVertical(commandBuffer, renderExtent);
 			});
 

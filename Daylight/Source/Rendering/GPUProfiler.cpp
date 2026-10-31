@@ -174,8 +174,24 @@ namespace Dlight
 				continue;
 			}
 			const uint64_t ticks = (end.value - begin.value) & timestampMask;
-			results.push_back({ frame.scopes[i].name,
-				static_cast<double>(ticks) * timestampPeriod / 1000000.0, frame.scopes[i].depth });
+			const double milliseconds = static_cast<double>(ticks) * timestampPeriod / 1000000.0;
+			const ScopeRecord& scope = frame.scopes[i];
+			auto existing = std::find_if(
+				results.begin(),
+				results.end(),
+				[&scope](const Result& timing)
+				{
+					return timing.name == scope.name && timing.depth == scope.depth;
+				});
+
+			if (existing != results.end())
+			{
+				existing->milliseconds += milliseconds;
+			}
+			else
+			{
+				results.push_back({ scope.name, milliseconds, scope.depth });
+			}
 		}
 
 		const auto now = std::chrono::steady_clock::now();
