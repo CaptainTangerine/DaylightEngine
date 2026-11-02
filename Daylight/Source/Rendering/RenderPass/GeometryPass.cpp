@@ -25,15 +25,27 @@ namespace Dlight
 	{
 	}
 
-	void GeometryPass::Execute(VkCommandBuffer commandBuffer, VkImageView renderTargetView, VkExtent2D extent)
+	void GeometryPass::Execute(
+		VkCommandBuffer commandBuffer,
+		VkImageView sceneColorView,
+		VkImageView sceneDepthView,
+		VkExtent2D extent)
 	{
 		VkRenderingAttachmentInfo colorAttachment{};
 		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-		colorAttachment.imageView = renderTargetView;
+		colorAttachment.imageView = sceneColorView;
 		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 		colorAttachment.clearValue.color = { 0.22f, 0.22f, 0.22f, 1.f };
+
+		VkRenderingAttachmentInfo depthAttachment{};
+		depthAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
+		depthAttachment.imageView = sceneDepthView;
+		depthAttachment.imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+		depthAttachment.clearValue.depthStencil = { 1.0f, 0 };
 
 		VkRenderingInfo renderingInfo{};
 		renderingInfo.sType = VK_STRUCTURE_TYPE_RENDERING_INFO;
@@ -41,6 +53,7 @@ namespace Dlight
 		renderingInfo.layerCount = 1;
 		renderingInfo.colorAttachmentCount = 1;
 		renderingInfo.pColorAttachments = &colorAttachment;
+		renderingInfo.pDepthAttachment = &depthAttachment;
 		vkCmdBeginRendering(commandBuffer, &renderingInfo);
 
 		VkViewport viewport{};
@@ -76,40 +89,40 @@ namespace Dlight
 		meshData.layout.attributes.resize(2);
 		meshData.layout.attributes[0].location = 0;
 		meshData.layout.attributes[0].binding = 0;
-		meshData.layout.attributes[0].format = VK_FORMAT_R32G32_SFLOAT;
+		meshData.layout.attributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
 		meshData.layout.attributes[0].offset = offsetof(VertexFormat::FColoredVertex, position);
 		meshData.layout.attributes[1].location = 1;
 		meshData.layout.attributes[1].binding = 0;
 		meshData.layout.attributes[1].format = VK_FORMAT_R32G32B32_SFLOAT;
 		meshData.layout.attributes[1].offset = offsetof(VertexFormat::FColoredVertex, color);
 
-		mesh = std::make_unique<MeshResource>("Triangle", device, std::move(meshData));
+		mesh = std::make_unique<MeshResource>("Cube", device, std::move(meshData));
 		if (!mesh->Load())
 		{
-			DL_LOG_ERROR("Failed to load triangle mesh");
+			DL_LOG_ERROR("Failed to load cube mesh");
 			std::abort();
 		}
 	}
 
 	void GeometryPass::CreatePipeline()
 	{
-		const std::filesystem::path shaderPath = Paths::GetShaderPath(L"Triangle.hlsl");
+		const std::filesystem::path shaderPath = Paths::GetShaderPath(L"Geometry.hlsl");
 
 		FShaderRaw vertexShaderRaw = {};
 		vertexShaderRaw.spirv = shaderCompiler.Compile(shaderPath.c_str(), ShaderConventions::VertexEntry, L"vs_6_0");
 		vertexShaderRaw.stage = VK_SHADER_STAGE_VERTEX_BIT;
 		vertexShaderRaw.entryPoint = ShaderConventions::VertexEntry;
-		vertexShader = std::make_unique<ShaderResource>("Triangle.VS", device, std::move(vertexShaderRaw));
+		vertexShader = std::make_unique<ShaderResource>("Geometry.VS", device, std::move(vertexShaderRaw));
 
 		FShaderRaw fragmentShaderRaw = {};
 		fragmentShaderRaw.spirv = shaderCompiler.Compile(shaderPath.c_str(), ShaderConventions::PixelEntry, L"ps_6_0");
 		fragmentShaderRaw.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
 		fragmentShaderRaw.entryPoint = ShaderConventions::PixelEntry;
-		fragmentShader = std::make_unique<ShaderResource>("Triangle.PS", device, std::move(fragmentShaderRaw));
+		fragmentShader = std::make_unique<ShaderResource>("Geometry.PS", device, std::move(fragmentShaderRaw));
 
 		if (!vertexShader->Load() || !fragmentShader->Load())
 		{
-			DL_LOG_ERROR("Failed to load triangle shaders");
+			DL_LOG_ERROR("Failed to load geometry shaders");
 			std::abort();
 		}
 
@@ -127,7 +140,7 @@ namespace Dlight
 		desc.vertexAttributes = mesh->GetVertexLayout().attributes;
 
 		desc.colorFormat = VulkanSwapchain::swapchainFormat;
-		desc.depthFormat = VK_FORMAT_UNDEFINED;
+		desc.depthFormat = DepthFormat;
 
 		pipeline = std::make_unique<VulkanGraphicsPipeline>(device, desc);
 	}

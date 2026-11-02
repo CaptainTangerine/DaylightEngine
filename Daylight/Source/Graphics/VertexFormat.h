@@ -6,7 +6,7 @@ namespace Dlight
 	{
 		struct FColoredVertex
 		{
-			Vector2 position;
+			Vector3 position;
 			Vector3 color;
 		};
 

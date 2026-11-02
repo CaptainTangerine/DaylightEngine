@@ -37,6 +37,7 @@ namespace Dlight
 		void Initialize();
 		void BuildRenderGraph();
 
+		RenderGraphImageHandle AddGeometryPass(VkExtent2D renderExtent);
 		RenderGraphImageHandle AddImagePass(VkExtent2D renderExtent);
 		FBlurGraphOutput AddBlurPass(RenderGraphImageHandle input, VkExtent2D renderExtent);
 		void AddPresentPass(RenderGraphImageHandle input, VkExtent2D renderExtent);

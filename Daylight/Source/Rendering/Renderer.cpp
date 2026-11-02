@@ -53,8 +53,12 @@ namespace Dlight
 			device.GetSwapchain().GetHeight()
 		};
 
-		const RenderGraphImageHandle sceneColor = AddImagePass(renderExtent);
+		//const RenderGraphImageHandle sceneColor = AddImagePass(renderExtent);
+		const RenderGraphImageHandle sceneColor = AddGeometryPass(renderExtent);
+
 		const FBlurGraphOutput blurOutput = AddBlurPass(sceneColor, renderExtent);
+
+
 		AddPresentPass(blurOutput.output, renderExtent);
 
 		renderGraph.Compile();
@@ -63,6 +67,48 @@ namespace Dlight
 			renderGraph.GetImageView(sceneColor),
 			renderGraph.GetImageView(blurOutput.temp),
 			renderGraph.GetImageView(blurOutput.output));
+	}
+
+	RenderGraphImageHandle Renderer::AddGeometryPass(VkExtent2D renderExtent)
+	{
+		FVulkanImageDesc sceneColorDesc = {};
+		sceneColorDesc.format = VulkanSwapchain::swapchainFormat;
+		sceneColorDesc.extent = { renderExtent.width, renderExtent.height, 1 };
+		sceneColorDesc.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+
+		FVulkanImageDesc sceneDepthDesc = {};
+		sceneDepthDesc.format = GeometryPass::DepthFormat;
+		sceneDepthDesc.extent = { renderExtent.width, renderExtent.height, 1 };
+		sceneDepthDesc.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+
+		struct FGeometryPassData
+		{
+			RenderGraphImageHandle sceneColor;
+			RenderGraphImageHandle sceneDepth;
+		};
+
+		const FGeometryPassData geometryPassData = renderGraph.AddPass<FGeometryPassData>(
+			"GeometryPass",
+			[sceneColorDesc, sceneDepthDesc](RenderGraph::Builder& builder, FGeometryPassData& data)
+			{
+				data.sceneColor = builder.DeclareInternal(sceneColorDesc);
+				data.sceneDepth = builder.DeclareInternal(sceneDepthDesc);
+
+				data.sceneColor = builder.Write(data.sceneColor, EImageState::ColorAttachmentWrite);
+				data.sceneDepth = builder.Write(data.sceneDepth, EImageState::DepthStencilAttachmentWrite);
+			},
+
+			[this, renderExtent](VkCommandBuffer commandBuffer, const FGeometryPassData& data)
+			{
+				geometryPass->Execute(
+					commandBuffer,
+					renderGraph.GetImageView(data.sceneColor),
+					renderGraph.GetImageView(data.sceneDepth),
+					renderExtent);
+			}
+		);
+
+		return geometryPassData.sceneColor;
 	}
 
 	RenderGraphImageHandle Renderer::AddImagePass(VkExtent2D renderExtent)

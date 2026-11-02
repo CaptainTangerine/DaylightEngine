@@ -1,7 +1,14 @@
 # Vulkan Renderer · 학습 계획
 
-> 갱신: 2026-10-27 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
+> 갱신: 2026-11-02 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
 > 코드 존재, 과거 작업 보고, 현재 빌드/실행·validation 증거를 구분한다.
+
+### 2026-11-02 사용자 완료 확인 — Render Graph
+
+- 사용자가 Render Graph 과제를 완료로 확정했다. 최소 리소스 모델뿐 아니라 후속 barrier plan도 완료 범위에 포함한다.
+- 현재 `HEAD` `7773653`의 코드에서 typed image/buffer handle, internal/external resource, pass별 Read/Write 상태, 물리 리소스 생성, barrier plan 생성·기록, 등록 순서 실행과 Image → BlurHorizontal → BlurVertical → Present 연결을 확인했다.
+- 이번 완료 처리는 사용자 확인과 코드 검토를 근거로 한 `completed`다. 이 갱신에서는 새 Debug 빌드, 실행 화면, validation 결과를 수집하지 않았으므로 `verified_complete`로 기록하지 않는다.
+- 다음 후보는 GeometryPass에서 고정 큐브를 color+depth와 고정 MVP로 출력한 뒤 CameraComponent와 키 입력을 연결하는 순서다. 아직 새 활성 과제로 지정하지 않는다.
 
 ### 2026-10-27 사용자 요청 구현·검증 — Image/Buffer 상태 분리
 
@@ -21,7 +28,7 @@
 - 당시 FPS 기준선의 미완료 상태와 별개로 프로파일러 구현·검증 기록을 보존한다. 2026-10-26 사용자 우선순위 변경 이후 FPS는 활성·대기 과제에서 제거되었으며 아래 JSON은 Render Graph 과제를 따른다.
 - 공식 근거: [Khronos timestamp queries](https://docs.vulkan.org/samples/latest/samples/api/timestamp_queries/README.html), [vkCmdWriteTimestamp2](https://docs.vulkan.org/refpages/latest/refpages/source/vkCmdWriteTimestamp2.html), [vkGetQueryPoolResults](https://docs.vulkan.org/refpages/latest/refpages/source/vkGetQueryPoolResults.html).
 
-## 현재의 단 하나의 핵심 과제 — 2026-10-26 (월)
+## 완료된 핵심 과제 — 2026-10-26 계획 · 2026-11-02 완료 확인
 
 **최소 Render Graph 리소스 모델 설계·첫 구현.** 예상 90~120분. 범용 그래프 전체를 복제하지 않고, 공통 `VirtualResource` 계약과 첫 구체 타입 `RenderGraphTexture`를 만든 뒤 현재 Scene → Blur → Present 흐름의 Read/Write 선언 자료를 수집하는 데 집중한다.
 
@@ -174,8 +181,8 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 
 | 순서 | 마일스톤 | 검증 가능한 완료 기준 | 상태 |
 |---|---|---|---|
-| 0 | 최소 Render Graph 리소스 모델 | `VirtualResource` 공통 계약, typed handle, 첫 Texture 타입과 세 패스 Read/Write 자료 수집이 Debug 컴파일 | **현재 활성 과제** |
-| 1 | Render Graph barrier plan | 등록 순서 실행에서 Scene → Blur → Present usage 전환을 계산하고 기존 화면·validation 결과 유지 | 대기 |
+| 0 | 최소 Render Graph 리소스 모델 | `VirtualResource` 공통 계약, typed handle, 첫 Texture 타입과 세 패스 Read/Write 자료 수집이 Debug 컴파일 | **완료 — 사용자 확인·코드 검토, 새 실행 검증 없음** |
+| 1 | Render Graph barrier plan | 등록 순서 실행에서 Scene → Blur → Present usage 전환을 계산하고 기존 화면·validation 결과 유지 | **완료 — 사용자 확인·코드 검토, 새 실행 검증 없음** |
 | 2 | glTF 파싱 | 실제 TinyGLTF 로그가 위 메타데이터와 일치 | 미완료·대기 |
 | 3 | 첫 primitive CPU 추출 | 위치/인덱스 개수·범위·stride·샘플 값 확인 | 대기 |
 | 4 | 정적 glTF 단색 출력 | 3D 위치/적절한 인덱스 업로드, 고정 MVP·깊이로 단색 모델 출력 | 대기 |
@@ -348,9 +355,15 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
 {
   "current_task": {
     "id": "render-graph-resource-model-mvp",
-    "status": "in_progress",
+    "status": "completed",
     "attempts": 0,
-    "completion_evidence": null,
+    "completion_evidence": {
+      "date": "2026-11-02",
+      "type": "user_confirmation_and_code_review",
+      "head": "7773653",
+      "summary": "사용자가 Render Graph 완료를 확정했고, typed handle/internal·external resource/Read·Write/barrier plan/등록 순서 실행 및 Image→BlurHorizontal→BlurVertical→Present 연결이 코드에 존재함을 확인했다.",
+      "verification_limit": "이번 갱신에서는 새 Debug 빌드·실행·validation 결과를 수집하지 않아 verified_complete로 기록하지 않는다."
+    },
     "title": "최소 Render Graph 리소스 모델 설계·첫 구현",
     "goal": "공통 VirtualResource 계약과 첫 RenderGraphTexture 타입을 구현하고 현재 세 패스의 Read/Write 선언 자료를 수집한다.",
     "first_20_minutes": [
@@ -364,22 +377,27 @@ Google Calendar의 기본 캘린더, 두 수업 캘린더, 대한민국 휴일 �
       "변경 소스가 Debug로 컴파일된다. 자동 barrier, topological sort, 렌더 결과는 다음 과제로 남긴다."
     ],
     "question": "VirtualResource가 물리 VulkanImage 자체가 아니라 논리 리소스의 공통 수명·사용 정보를 나타내야 하는 이유는 무엇인가?",
-    "next": "등록 순서 실행에서 리소스별 이전/다음 usage를 비교해 barrier plan을 계산한다. DependencyGraph는 재배치나 pass culling이 필요할 때 추가한다.",
+    "next": "새 활성 과제는 아직 지정하지 않는다. 다음 후보는 GeometryPass의 고정 큐브 color+depth·고정 MVP 출력이며, 이후 CameraComponent와 키 입력을 연결한다.",
     "duration_minutes": 120,
     "minimum_minutes": 90,
     "short_session_goal": "Read/Write·usage 표와 네 타입의 책임을 확정하고 typed handle/VirtualResource 골격까지만 작성한다.",
     "deferred_tasks": [
       {
         "id": "render-graph-barrier-plan",
-        "status": "pending",
-        "completion_evidence": null,
-        "reason": "리소스 계약과 Read/Write 자료 수집 후 진행"
+        "status": "completed",
+        "completion_evidence": {
+          "date": "2026-11-02",
+          "type": "user_confirmation_and_code_review",
+          "summary": "리소스별 이전/다음 access를 비교해 이미지·버퍼 barrier plan을 만들고 기록하는 경로와 현재 패스 연결을 코드에서 확인했다.",
+          "verification_limit": "현재 턴의 새 실행·validation 증거는 없음"
+        },
+        "reason": "사용자가 Render Graph 전체 완료를 확정함"
       },
       {
         "id": "gltf-v3-metadata",
         "status": "pending",
         "completion_evidence": null,
-        "reason": "최소 Render Graph의 현재 세 패스 이관 뒤 모델 로딩 재개"
+        "reason": "Render Graph 완료 후 사용자 신규 우선순위에 따라 GeometryPass/카메라 단계를 먼저 진행"
       }
     ],
     "planned_date": "2026-10-26",

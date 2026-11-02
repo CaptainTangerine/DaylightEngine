@@ -37,7 +37,7 @@ namespace Dlight
                 Matrix scaleMatrix = Matrix::CreateScale(scale);
                 Matrix rotationMatrix = Matrix::CreateFromQuaternion(rotation);
                 Matrix trnaslationMatrix = Matrix::CreateTranslation(position);
-                transformMatrix = scaleMatrix * rotationMatrix * transformMatrix;
+                transformMatrix = scaleMatrix * rotationMatrix * trnaslationMatrix;
                 
                 transformDirty = false;
             }

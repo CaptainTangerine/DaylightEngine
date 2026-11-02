@@ -18,10 +18,16 @@ namespace Dlight
 	class GeometryPass
 	{
 	public:
+		static constexpr VkFormat DepthFormat = VK_FORMAT_D32_SFLOAT;
+
 		GeometryPass(VulkanDevice& device, ResourceManager& resourceManager, ShaderCompiler& shaderCompiler);
 		~GeometryPass();
 
-		void Execute(VkCommandBuffer commandBuffer, VkImageView renderTargetView, VkExtent2D extent);
+		void Execute(
+			VkCommandBuffer commandBuffer,
+			VkImageView sceneColorView,
+			VkImageView sceneDepthView,
+			VkExtent2D extent);
 
 	private:
 		void CreateMesh();
@@ -33,11 +39,25 @@ namespace Dlight
 
 		const std::vector<VertexFormat::FColoredVertex> vertices =
 		{
-			{{0.f, 0.5f}, {1.0f, 0.0f, 0.0f}},
-			{{-0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-			{{0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}}
+			{{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+			{{ 0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+			{{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}},
+			{{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 0.0f}},
+			{{-0.5f, -0.5f,  0.5f}, {1.0f, 0.0f, 1.0f}},
+			{{ 0.5f, -0.5f,  0.5f}, {0.0f, 1.0f, 1.0f}},
+			{{ 0.5f,  0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}},
+			{{-0.5f,  0.5f,  0.5f}, {1.0f, 0.5f, 0.0f}}
 		};
-		const std::vector<uint32> indices = { 0, 1, 2 };
+
+		const std::vector<uint32> indices =
+		{
+			0, 3, 2, 0, 2, 1,
+			4, 5, 6, 4, 6, 7,
+			0, 4, 7, 0, 7, 3,
+			1, 2, 6, 1, 6, 5,
+			0, 1, 5, 0, 5, 4,
+			3, 7, 6, 3, 6, 2
+		};
 
 		std::unique_ptr<MeshResource> mesh;
 		std::unique_ptr<ShaderResource> vertexShader;

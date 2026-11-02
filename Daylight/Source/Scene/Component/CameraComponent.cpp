@@ -35,7 +35,7 @@ namespace Dlight
     {
         if (projectionDirty)
         {
-            DirectX::XMMatrixPerspectiveFovLH(FOV, aspectRatio, nearPlane, farPlane);
+            ProjectionMatrix = DirectX::XMMatrixPerspectiveFovLH(FOV, aspectRatio, nearPlane, farPlane);
             projectionDirty = false;
         }
         return ProjectionMatrix;
