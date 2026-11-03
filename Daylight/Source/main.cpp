@@ -1,13 +1,12 @@
 #include "pch.h"
-#include "Core/Engine.h"
+#include "Editor/EditorApplication.h"
 
 int main()
 {
-    Dlight::Engine engine;
-
-    try 
+    try
     {
-        engine.Run();
+        Dlight::EditorApplication app;
+        app.Run();
     }
     catch (const std::exception& e)
     {

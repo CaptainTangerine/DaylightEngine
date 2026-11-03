@@ -8,8 +8,8 @@ $ErrorActionPreference = 'Stop'
 
 if ([string]::IsNullOrWhiteSpace($ClassPath)) {
     Write-Host 'Usage: .\new-class <path relative to Daylight/Source>'
-    Write-Host '  .\new-class Scene/Entity'
-    Write-Host '  .\new-class Graphics/Vulkan/VulkanTexture'
+    Write-Host '  .\new-class Runtime/Scene/Entity'
+    Write-Host '  .\new-class Runtime/Graphics/Vulkan/VulkanTexture'
     exit 0
 }
 
