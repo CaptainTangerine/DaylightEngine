@@ -1,5 +1,6 @@
 #include "pch.h"
 #include "EditorApplication.h"
+#include "EditorViewportClient.h"
 #include "Runtime/Core/Engine.h"
 #include <stdexcept>
 
@@ -71,7 +72,9 @@ namespace Dlight
 
 		width = static_cast<uint32>(pixelWidth);
 		height = static_cast<uint32>(pixelHeight);
+		
 		engine = std::make_unique<Engine>(window, width, height);
+		viewportClient = std::make_unique<EditorViewportClient>();
 	}
 
 	void EditorApplication::SetWindowIcon()
@@ -122,7 +125,7 @@ namespace Dlight
 					width = event.window.data1;
 					height = event.window.data2;
 				}
-
+				viewportClient->HandleEvent(event);
 			}
 
 			if (!bRunning)
@@ -143,10 +146,15 @@ namespace Dlight
 				ResetFrameStats();
 				continue;
 			}
+
 			if (engine->AcquireNextImage())
 			{
 				UpdateDeltaTime();
-				engine->RenderFrame();
+				
+				viewportClient->Tick(deltaTime);
+
+				const FViewData viewData = viewportClient->BuildViewData(width, height);
+				engine->RenderFrame(viewData);
 				UpdateFrameStats();
 			}
 			else

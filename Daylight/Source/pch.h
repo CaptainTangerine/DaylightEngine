@@ -18,6 +18,7 @@
 #include <typeindex>
 #include <algorithm>
 #include <variant>
+#include <chrono>
 
 #include <memory>
 

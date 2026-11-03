@@ -1,15 +1,11 @@
 #pragma once
 
-#include <chrono>
-#include <memory>
-#include <string>
-#include "CoreTypes.h"
-
 struct SDL_Window;
 
 namespace Dlight
 {
 	class Engine;
+	class EditorViewportClient;
 
 	class EditorApplication
 	{
@@ -45,5 +41,6 @@ namespace Dlight
 		float deltaTime = { 0.0f };
 
 		std::unique_ptr<Engine> engine = { nullptr };
+		std::unique_ptr<EditorViewportClient> viewportClient = { nullptr };
 	};
 }

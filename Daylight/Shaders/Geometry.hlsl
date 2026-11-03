@@ -1,7 +1,7 @@
 struct VSInput
 {
-    [[vk::location(0)]] float3 inPosition : POSITION;
-    [[vk::location(1)]] float3 inColor : COLOR0;
+    float3 inPosition : POSITION;
+    float3 inColor : COLOR0;
 };
 
 struct VSOutput
@@ -10,9 +10,18 @@ struct VSOutput
     float3 color : COLOR0;
 };
 
+struct TrasnformUniform
+{
+    float4x4 model;
+    float4x4 view;
+    float4x4 projection;
+};
+
+
 VSOutput VS_Main(VSInput input)
 {
     VSOutput output;
+    
     output.position = float4(input.inPosition, 1.0f);
     output.color = input.inColor;
     return output;

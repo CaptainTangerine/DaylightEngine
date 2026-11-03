@@ -260,8 +260,11 @@ namespace Dlight
 		BuildRenderGraph();
 	}
 
-	void Renderer::Render()
+	void Renderer::Render(const FViewData& _viewData)
 	{
+		// 전달받은 카메라 데이터를 이 프레임의 복사본으로 보관한다.
+		viewData = _viewData;
+
 		const FFrameResource& frameResource = device.GetCurrentFrameResource();
 		const VkCommandBuffer commandBuffer = frameResource.commandBuffer;
 

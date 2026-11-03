@@ -10,6 +10,7 @@ namespace Dlight
 	class VulkanDevice;
 	class Renderer;
 	class ResourceManager;
+	struct FViewData;
 
 	class Engine
 	{
@@ -26,7 +27,7 @@ namespace Dlight
 		bool PrepareFrame(uint32 width, uint32 height);
 		bool AcquireNextImage();
 		// 이미지 획득 성공 후 호출한다.
-		void RenderFrame();
+		void RenderFrame(const FViewData& viewData);
 
 	private:
 		void Initialize(SDL_Window* window, uint32 width, uint32 height);

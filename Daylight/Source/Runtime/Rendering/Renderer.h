@@ -2,6 +2,7 @@
 #include <vulkan/vulkan.h>
 
 #include "ShaderCompiler.h"
+#include "ViewData.h"
 #include "RenderGraph/RenderGraph.h"
 
 namespace Dlight
@@ -25,7 +26,7 @@ namespace Dlight
 
 	public:
 		void OnResize(uint32 width, uint32 height);
-		void Render();
+		void Render(const FViewData& viewData);
 
 	private:
 		struct FBlurGraphOutput
@@ -51,6 +52,7 @@ namespace Dlight
 
 		ShaderCompiler shaderCompiler;
 		RenderGraphImageHandle renderGraphBackBuffer = {};
+		FViewData viewData = {};
 
 		std::unique_ptr<Dlight::GeometryPass> geometryPass = { nullptr };
 		std::unique_ptr<Dlight::ImagePass> imagePass = { nullptr };

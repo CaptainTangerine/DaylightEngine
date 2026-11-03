@@ -62,10 +62,10 @@ namespace Dlight
 		return vulkanDevice->AcquireNextImage();
 	}
 
-	void Engine::RenderFrame()
+	void Engine::RenderFrame(const FViewData& viewData)
 	{
 		vulkanDevice->BeginFrame();
-		renderer->Render();
+		renderer->Render(viewData);
 		vulkanDevice->EndFrame();
 	}
 
