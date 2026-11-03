@@ -8,8 +8,9 @@ $ErrorActionPreference = 'Stop'
 
 if ([string]::IsNullOrWhiteSpace($ClassPath)) {
     Write-Host 'Usage: .\new-class <path relative to Daylight/Source>'
-    Write-Host '  .\new-class Scene/Entity'
-    Write-Host '  .\new-class Graphics/Vulkan/VulkanTexture'
+    Write-Host '  .\new-class Runtime/Scene/Entity'
+    Write-Host '  .\new-class Runtime/Graphics/Vulkan/VulkanTexture'
+    Write-Host '  .\new-class Editor/EditorApplication'
     exit 0
 }
 
@@ -27,6 +28,11 @@ try {
     $classBasePath = [System.IO.Path]::GetFullPath((Join-Path $sourceRoot $ClassPath))
     if (-not $classBasePath.StartsWith($sourcePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw 'The output path must stay inside Daylight/Source.'
+    }
+
+    $relativePath = $classBasePath.Substring($sourcePrefix.Length)
+    if ($relativePath -notmatch '^(Runtime|Editor)[\\/]') {
+        throw 'Start the class path with Runtime/ or Editor/.'
     }
 
     $className = [System.IO.Path]::GetFileName($classBasePath)

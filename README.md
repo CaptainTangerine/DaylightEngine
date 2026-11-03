@@ -38,11 +38,13 @@ DirectXMath와 SimpleMath는 `External` 폴더의 파일을 사용합니다.
 저장소 루트의 터미널에서 클래스 경로를 입력합니다. 경로는 `Daylight/Source` 기준입니다.
 
 ```powershell
-.\new-class Scene/Entity
-.\new-class Scene/Components/MeshComponent
-.\new-class Graphics/Vulkan/VulkanTexture
+.\new-class Runtime/Scene/Entity
+.\new-class Runtime/Scene/Component/MeshComponent
+.\new-class Runtime/Graphics/Vulkan/VulkanTexture
+.\new-class Editor/EditorApplication
 ```
 
+클래스 경로는 `Runtime/` 또는 `Editor/`로 시작해야 합니다.
 필요한 폴더와 `.h`, `.cpp`를 생성합니다. 헤더에는 기본 생성자·소멸자 선언을,
 구현 파일에는 `pch.h`와 해당 헤더 include 및 빈 생성자·소멸자를 작성합니다.
 헤더와 구현 파일 모두 `namespace Dlight` 안에 작성합니다. 파일이 하나라도 이미 존재하면 덮어쓰지 않고 중단합니다.
@@ -64,17 +66,38 @@ DaylightEngine/
 ├─ Daylight/
 │  ├─ Shaders/
 │  └─ Source/
-│     ├─ Core/
-│     ├─ Graphics/
-│     │  └─ Vulkan/
-│     ├─ Math/
-│     └─ Rendering/
+│     ├─ Runtime/
+│     │  ├─ Core/          # Engine, Logger, Paths
+│     │  ├─ Graphics/
+│     │  │  └─ Vulkan/
+│     │  ├─ Rendering/
+│     │  ├─ Scene/
+│     │  ├─ Resources/
+│     │  ├─ Math/
+│     │  └─ Utils/
+│     ├─ Editor/
+│     │  ├─ EditorApplication.h
+│     │  └─ EditorApplication.cpp
+│     ├─ CoreTypes.h
+│     ├─ pch.h
+│     ├─ pch.cpp
+│     └─ main.cpp
 ├─ External/
 │  ├─ DirectXMath/
 │  └─ SimpleMath/
 ├─ CMakeLists.txt
 └─ CMakePresets.json
 ```
+
+`EditorApplication`은 SDL 초기화·창·이벤트·메인 루프·프레임 통계를 관리하며
+`Engine`을 소유합니다. `Engine`은 외부 창과 초기 픽셀 크기를 받아 VulkanDevice,
+ResourceManager, Renderer 및 프레임 렌더링을 관리합니다. 창 포인터는 비소유 참조입니다.
+종료 시 GPU 완료를 기다린 뒤 Renderer → ResourceManager → VulkanDevice(surface 포함) →
+SDL 창 → SDL 순서로 정리합니다. 실행 타깃은 기존 `Daylight.exe` 하나입니다.
+
+Include 검색 경로는 `Daylight/Source`와 `Daylight/Source/Runtime`이며,
+Runtime 내부의 기존 `Graphics/...`, `Rendering/...` include를 유지합니다.
+Runtime은 Editor 헤더를 참조하지 않습니다. PCH는 공통 `Source/pch.h`를 사용합니다.
 
 ## 수학 규칙
 

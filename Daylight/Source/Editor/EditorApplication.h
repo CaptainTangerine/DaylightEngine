@@ -1,20 +1,24 @@
 #pragma once
 
 #include <chrono>
+#include <memory>
+#include <string>
+#include "CoreTypes.h"
 
 struct SDL_Window;
 
 namespace Dlight
 {
-	class  VulkanDevice;
-	class  Renderer;
-	class  ResourceManager;
+	class Engine;
 
-	class Engine
+	class EditorApplication
 	{
 	public:
-		Engine();
-		~Engine();
+		EditorApplication();
+		~EditorApplication();
+
+		EditorApplication(const EditorApplication&) = delete;
+		EditorApplication& operator=(const EditorApplication&) = delete;
 
 	public:
 		void Run();
@@ -29,21 +33,17 @@ namespace Dlight
 		void UpdateFrameStats();
 
 	private:
-		// Window
-		SDL_Window* window = { nullptr } ;
+		SDL_Window* window = { nullptr };
 		uint32 width = { 1280 };
 		uint32 height = { 720 };
-		bool	 bRunning = { false };
+		bool bRunning = { false };
 
-		// 프레임 전체의 CPU/present 경과 시간. 게임 업데이트에서 사용할 수 있도록 초 단위로 저장한다.
+		// 프레임 전체의 CPU/present 경과 시간을 초 단위로 저장한다.
 		using FrameClock = std::chrono::steady_clock;
 		FrameClock::time_point previousFrameTime = {};
 		FrameClock::time_point logSampleStart = {};
 		float deltaTime = { 0.0f };
 
-		std::unique_ptr<VulkanDevice> vulkanDevice = { nullptr };
-		std::unique_ptr<ResourceManager> resourceManager = { nullptr };
-		std::unique_ptr<Renderer>	  renderer = { nullptr };
-
+		std::unique_ptr<Engine> engine = { nullptr };
 	};
 }

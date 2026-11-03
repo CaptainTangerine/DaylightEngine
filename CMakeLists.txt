@@ -49,6 +49,7 @@ target_sources(Daylight PRIVATE
 # 컴파일러가 헤더 파일을 찾을 경로 설정
 target_include_directories(Daylight PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/Daylight/Source"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Daylight/Source/Runtime"
     "${CMAKE_CURRENT_SOURCE_DIR}/External/DirectXMath/Inc"
     "${CMAKE_CURRENT_SOURCE_DIR}/External/SimpleMath"
     "${CMAKE_CURRENT_SOURCE_DIR}/External/stb"

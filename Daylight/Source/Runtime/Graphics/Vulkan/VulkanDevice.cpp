@@ -6,6 +6,7 @@
 #include "VulkanDevice.h"
 #include <SDL3/SDL.h>
 #include <SDL3/SDL_vulkan.h>
+#include <stdexcept>
 
 #include "VulkanBuffer.h"
 #include "VulkanImage.h"
@@ -47,7 +48,19 @@ namespace Dlight
 
 	VulkanDevice::VulkanDevice(SDL_Window* window, uint32 width, uint32 height)
 	{
-		Initialize(window, width, height);
+		try
+		{
+			Initialize(window, width, height);
+		}
+		catch (...)
+		{
+			if (device)
+			{
+				vkDeviceWaitIdle(device);
+			}
+			Shutdown();
+			throw;
+		}
 	}
 
 	VulkanDevice::~VulkanDevice()
@@ -538,40 +551,34 @@ namespace Dlight
 	{
 		if (!InitializeVulkan())
 		{
-			DL_LOG_ERROR("can't create a vulkan instance");
-			std::abort();
+			throw std::runtime_error("can't create a vulkan instance");
 		}
 
 		if (!InitializeSurface(window))
 		{
-			DL_LOG_ERROR("Can't create a vulkansurface");
-			std::abort();
+			throw std::runtime_error("Can't create a vulkansurface");
 		}
 
 		// 창과 VulkanSurface를 어떤 GPU로 쓸지
 		physicalDevice = FindPhysicalDevice();
 		if (!physicalDevice)
 		{
-			DL_LOG_ERROR("Can't find a physical device");
-			std::abort();
+			throw std::runtime_error("Can't find a physical device");
 		}
 
 		if (!FindGraphicsQueue())
 		{
-			DL_LOG_ERROR("Can't find a Compatible graphics queue");
-			std::abort();
+			throw std::runtime_error("Can't find a Compatible graphics queue");
 		}
 
 		if (!CreateDevice())
 		{
-			DL_LOG_ERROR("Can't create a logical device or get its graphics queue");
-			std::abort();
+			throw std::runtime_error("Can't create a logical device or get its graphics queue");
 		}
 
 		if (!InitializeVMA())
 		{
-			DL_LOG_ERROR("Failed to initialize Vulkan memory allocator");
-			std::abort();
+			throw std::runtime_error("Failed to initialize Vulkan memory allocator");
 		}
 
 		swapchain = std::make_unique<VulkanSwapchain>(*this, width, height);
@@ -584,26 +591,22 @@ namespace Dlight
 
 		if (!CreateSyncResources())
 		{
-			DL_LOG_ERROR("Can't create a Sync Resource");
-			std::abort();
+			throw std::runtime_error("Can't create a Sync Resource");
 		}
 
 		if (!CreateCommandBuffers())
 		{
-			DL_LOG_ERROR("Can't create command buffer objects");
-			std::abort();
+			throw std::runtime_error("Can't create command buffer objects");
 		}
 
 		if (!CreateBindlessDescriptors())
 		{
-			DL_LOG_ERROR("Can't create bindless descriptor set");
-			std::abort();
+			throw std::runtime_error("Can't create bindless descriptor set");
 		}
 
 		if (!CreateSamplerDescriptors())
 		{
-			DL_LOG_ERROR("Can't create smapler descriptor set");
-			std::abort();
+			throw std::runtime_error("Can't create smapler descriptor set");
 		}
 
 		gpuProfiler = std::make_unique<GPUProfiler>(*this, MaxFramesInFlight);
@@ -618,12 +621,22 @@ namespace Dlight
 		if (timelineSemaphore)
 		{
 			vkDestroySemaphore(device, timelineSemaphore, nullptr);
+			timelineSemaphore = VK_NULL_HANDLE;
 		}
 
 		for (auto& res : frameResources)
 		{
-			vkDestroySemaphore(device, res.imageAcquiredSemaphore, nullptr);
-			vkDestroyCommandPool(device, res.commandPool, nullptr);
+			if (res.imageAcquiredSemaphore)
+			{
+				vkDestroySemaphore(device, res.imageAcquiredSemaphore, nullptr);
+				res.imageAcquiredSemaphore = VK_NULL_HANDLE;
+			}
+			if (res.commandPool)
+			{
+				vkDestroyCommandPool(device, res.commandPool, nullptr);
+				res.commandPool = VK_NULL_HANDLE;
+				res.commandBuffer = VK_NULL_HANDLE;
+			}
 		}
 
 		if (swapchain)
@@ -1066,18 +1079,22 @@ namespace Dlight
 		if (bindlessLayout)
 		{
 			vkDestroyDescriptorSetLayout(device, bindlessLayout, nullptr);
+			bindlessLayout = VK_NULL_HANDLE;
 		}
 		if (bindlessPool)
 		{
 			vkDestroyDescriptorPool(device, bindlessPool, nullptr);
+			bindlessPool = VK_NULL_HANDLE;
 		}
 		if (samplerLayout)
 		{
 			vkDestroyDescriptorSetLayout(device, samplerLayout, nullptr);
+			samplerLayout = VK_NULL_HANDLE;
 		}
 		if (samplerPool)
 		{
 			vkDestroyDescriptorPool(device, samplerPool, nullptr);
+			samplerPool = VK_NULL_HANDLE;
 		}
 
 	}

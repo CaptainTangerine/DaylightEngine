@@ -1,40 +1,47 @@
 #include "pch.h"
-#include "Engine.h"
+#include "EditorApplication.h"
+#include "Runtime/Core/Engine.h"
+#include <stdexcept>
 
 #include <SDL3/SDL.h>
 #include <iomanip>
 
-#include <Core/Paths.h>
-#include <Graphics/Vulkan/VulkanDevice.h>
-#include <Graphics/Vulkan/VulkanSwapchain.h>
-#include <Rendering/Renderer.h>
-#include <Resources/ResourceManager.h>
-#include <Utils/Image.h>
+#include <Runtime/Core/Paths.h>
+#include <Runtime/Utils/Image.h>
 
 namespace Dlight
 {
-	void Engine::ShowError(const std::string& message) const
+	void EditorApplication::ShowError(const std::string& message) const
 	{
 		DL_LOG_ERROR(message);
 		SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Daylight - Error", message.c_str(), window);
 	}
 
-	Engine::Engine()
+	EditorApplication::EditorApplication()
 	{
-		Initialize();
+		try
+		{
+			Initialize();
+		}
+		catch (...)
+		{
+			Shutdown();
+			throw;
+		}
 	}
 
-	Engine::~Engine()
+	EditorApplication::~EditorApplication()
 	{
 		Shutdown();
 	}
 
-	void Engine::Initialize()
+	void EditorApplication::Initialize()
 	{
 		if (!SDL_InitSubSystem(SDL_INIT_VIDEO))
 		{
-			ShowError(SDL_GetError());
-			std::abort();
+			const std::string message = SDL_GetError();
+			ShowError(message);
+			throw std::runtime_error(message);
 		}
 
 		window = SDL_CreateWindow(
@@ -45,8 +52,9 @@ namespace Dlight
 
 		if (!window)
 		{
-			ShowError(SDL_GetError());
-			std::abort();
+			const std::string message = SDL_GetError();
+			ShowError(message);
+			throw std::runtime_error(message);
 		}
 
 		SetWindowIcon();
@@ -56,20 +64,17 @@ namespace Dlight
 		int pixelHeight = 0;
 		if (!SDL_GetWindowSizeInPixels(window, &pixelWidth, &pixelHeight))
 		{
-			ShowError(SDL_GetError());
-			std::abort();
+			const std::string message = SDL_GetError();
+			ShowError(message);
+			throw std::runtime_error(message);
 		}
 
-		vulkanDevice = std::make_unique<VulkanDevice>(
-			window, static_cast<uint32>(pixelWidth), static_cast<uint32>(pixelHeight));
 		width = static_cast<uint32>(pixelWidth);
 		height = static_cast<uint32>(pixelHeight);
-
-		resourceManager = std::make_unique<ResourceManager>();
-		renderer = std::make_unique<Renderer>(*vulkanDevice, *resourceManager);
+		engine = std::make_unique<Engine>(window, width, height);
 	}
 
-	void Engine::SetWindowIcon()
+	void EditorApplication::SetWindowIcon()
 	{
 		const std::filesystem::path iconPath = Paths::GetAssetPath(L"Image/Icon.png");
 		Image iconImage(iconPath.string());
@@ -95,7 +100,7 @@ namespace Dlight
 		SDL_DestroySurface(iconSurface);
 	}
 
-	void Engine::Run()
+	void EditorApplication::Run()
 	{
 		bRunning = true;
 		ResetFrameStats();
@@ -132,27 +137,16 @@ namespace Dlight
 				continue;
 			}
 
-			bool swapchainRecreated = false;
-			if (!vulkanDevice->UpdateSwapchain(width, height, swapchainRecreated))
+			if (!engine->PrepareFrame(width, height))
 			{
 				SDL_Delay(10);
 				ResetFrameStats();
 				continue;
 			}
-
-			if (swapchainRecreated)
-			{
-				renderer->OnResize(
-					vulkanDevice->GetSwapchain().GetWidth(),
-					vulkanDevice->GetSwapchain().GetHeight());
-			}
-
-			if (vulkanDevice->AcquireNextImage())
+			if (engine->AcquireNextImage())
 			{
 				UpdateDeltaTime();
-				vulkanDevice->BeginFrame();
-				renderer->Render();
-				vulkanDevice->EndFrame();
+				engine->RenderFrame();
 				UpdateFrameStats();
 			}
 			else
@@ -162,7 +156,7 @@ namespace Dlight
 		}
 	}
 
-	void Engine::ResetFrameStats()
+	void EditorApplication::ResetFrameStats()
 	{
 		const auto now = FrameClock::now();
 		previousFrameTime = now;
@@ -170,14 +164,14 @@ namespace Dlight
 		deltaTime = 0.0f;
 	}
 
-	void Engine::UpdateDeltaTime()
+	void EditorApplication::UpdateDeltaTime()
 	{
 		const auto now = FrameClock::now();
 		deltaTime = std::chrono::duration<float>(now - previousFrameTime).count();
 		previousFrameTime = now;
 	}
 
-	void Engine::UpdateFrameStats()
+	void EditorApplication::UpdateFrameStats()
 	{
 		if (deltaTime <= 0.0f)
 		{
@@ -202,13 +196,10 @@ namespace Dlight
 		}
 	}
 
-	void Engine::Shutdown()
+	void EditorApplication::Shutdown()
 	{
-		vkDeviceWaitIdle(vulkanDevice->GetDevice());
-
-		renderer.reset();
-		resourceManager.reset();
-		vulkanDevice.reset();
+		// Engine이 surface/device까지 해제한 뒤 SDL 창을 파괴한다.
+		engine.reset();
 
 		if (window)
 		{
@@ -216,7 +207,7 @@ namespace Dlight
 			window = nullptr;
 		}
 
+		// SDL 초기화 실패 시에도 호출할 수 있다.
 		SDL_Quit();
 	}
-
 }

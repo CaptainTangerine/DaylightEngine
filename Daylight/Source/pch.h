@@ -27,5 +27,5 @@ using Microsoft::WRL::ComPtr;
 
 
 #include "CoreTypes.h"
-#include "Math/MathTypes.h"
-#include "Core/Logger.h"
+#include "Runtime/Math/MathTypes.h"
+#include "Runtime/Core/Logger.h"

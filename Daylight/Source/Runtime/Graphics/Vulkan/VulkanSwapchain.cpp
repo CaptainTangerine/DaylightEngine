@@ -1,13 +1,22 @@
 #include "pch.h"
 #include "VulkanSwapchain.h"
 #include "VulkanDevice.h"
+#include <stdexcept>
 
 namespace Dlight
 {
 	VulkanSwapchain::VulkanSwapchain(VulkanDevice& _device, uint32 width, uint32 height)
 		: device(_device)
 	{
-		Initialize(width, height);
+		try
+		{
+			Initialize(width, height);
+		}
+		catch (...)
+		{
+			Shutdown();
+			throw;
+		}
 	}
 
 	VulkanSwapchain::~VulkanSwapchain()
@@ -24,8 +33,7 @@ namespace Dlight
 			&presentModeCount,
 			nullptr) != VK_SUCCESS)
 		{
-			DL_LOG_ERROR("Failed to get present mode count");
-			std::abort();
+			throw std::runtime_error("Failed to get present mode count");
 		}
 
 		std::vector<VkPresentModeKHR> presentModes(presentModeCount);
@@ -35,8 +43,7 @@ namespace Dlight
 			&presentModeCount,
 			presentModes.data()) != VK_SUCCESS)
 		{
-			DL_LOG_ERROR("Failed to get present modes");
-			std::abort();
+			throw std::runtime_error("Failed to get present modes");
 		}
 
 		for (VkPresentModeKHR presentMode : presentModes)
@@ -61,19 +68,16 @@ namespace Dlight
 		uint32 formatCount = 0;
 		if (vkGetPhysicalDeviceSurfaceFormatsKHR(device.GetPhysicalDevice(), device.GetSurface(), &formatCount, nullptr) != VK_SUCCESS)
 		{
-			DL_LOG_ERROR("Failed to get surface format count");
-			std::abort();
+			throw std::runtime_error("Failed to get surface format count");
 		}
 		if (formatCount == 0)
 		{
-			DL_LOG_ERROR("No surface formats are available");
-			std::abort();
+			throw std::runtime_error("No surface formats are available");
 		}
 		std::vector<VkSurfaceFormatKHR> surfaceFormats(formatCount);
 		if (vkGetPhysicalDeviceSurfaceFormatsKHR(device.GetPhysicalDevice(), device.GetSurface(), &formatCount, surfaceFormats.data()) != VK_SUCCESS)
 		{
-			DL_LOG_ERROR("Failed to get surface formats");
-			std::abort();
+			throw std::runtime_error("Failed to get surface formats");
 		}
 		surfaceFormats.resize(formatCount);
 
@@ -89,22 +93,19 @@ namespace Dlight
 
 		if (!formatSupported)
 		{
-			DL_LOG_ERROR("Requested swapchain format is not supported by the surface");
-			std::abort();
+			throw std::runtime_error("Requested swapchain format is not supported by the surface");
 		}
 
 
 		VkSurfaceCapabilitiesKHR surfaceCaps{};
 		if (vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device.GetPhysicalDevice(), device.GetSurface(), &surfaceCaps))
 		{
-			DL_LOG_ERROR("Can't get the surface capabilities");
-			std::abort();
+			throw std::runtime_error("Can't get the surface capabilities");
 		}
 
 		if (!(surfaceCaps.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT))
 		{
-			DL_LOG_ERROR("Swapchain does not support transfer destination usage");
-			std::abort();
+			throw std::runtime_error("Swapchain does not support transfer destination usage");
 		}
 
 		VkExtent2D imageExtent{};
@@ -161,8 +162,7 @@ namespace Dlight
 		
 		if (vkCreateSwapchainKHR(device.GetDevice(), &swapchainCreateInfo, nullptr, &swapchain) != VK_SUCCESS)
 		{
-			DL_LOG_ERROR("Error creating swapchain");
-			std::abort();
+			throw std::runtime_error("Error creating swapchain");
 		}
 
 		// 실제 스왑체인이 관리하는 이미지 개수 가져오기
@@ -186,8 +186,7 @@ namespace Dlight
 
 			if (VK_SUCCESS != vkCreateImageView(device.GetDevice(), &imgViewInfo, nullptr, &swapchainImageViews[i]))
 			{
-				DL_LOG_ERROR("Error Createing Swapchian ImageViews");
-				std::abort();
+				throw std::runtime_error("Error Createing Swapchian ImageViews");
 			}
 		}
 
@@ -200,8 +199,7 @@ namespace Dlight
 
 			if (VK_SUCCESS != vkCreateSemaphore(device.GetDevice(), &semaphoreInfo, nullptr, &semaphore))
 			{
-				DL_LOG_ERROR("Error create render complete semaphore");
-				std::abort();
+				throw std::runtime_error("Error create render complete semaphore");
 			}
 		}
 		return true;
