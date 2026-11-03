@@ -26,7 +26,7 @@ namespace Dlight
 
 	void Renderer::Initialize()
 	{
-		blurPass = std::make_unique<Dlight::BlurPass>(device, resourceManager, shaderCompiler);
+		//blurPass = std::make_unique<Dlight::BlurPass>(device, resourceManager, shaderCompiler);
 
 		const std::filesystem::path imagePath = Paths::GetAssetPath(L"Image/Test.jpg");
 		FTextureRaw textureData = { Image(imagePath.string()), {} };
@@ -56,17 +56,17 @@ namespace Dlight
 		//const RenderGraphImageHandle sceneColor = AddImagePass(renderExtent);
 		const RenderGraphImageHandle sceneColor = AddGeometryPass(renderExtent);
 
-		const FBlurGraphOutput blurOutput = AddBlurPass(sceneColor, renderExtent);
+		//const FBlurGraphOutput blurOutput = AddBlurPass(sceneColor, renderExtent);
 
-
-		AddPresentPass(blurOutput.output, renderExtent);
+		//AddPresentPass(blurOutput.output, renderExtent);
+		AddPresentPass(sceneColor, renderExtent);
 
 		renderGraph.Compile();
 
-		blurPass->SetResources(
-			renderGraph.GetImageView(sceneColor),
-			renderGraph.GetImageView(blurOutput.temp),
-			renderGraph.GetImageView(blurOutput.output));
+		//blurPass->SetResources(
+		//	renderGraph.GetImageView(sceneColor),
+		//	renderGraph.GetImageView(blurOutput.temp),
+		//	renderGraph.GetImageView(blurOutput.output));
 	}
 
 	RenderGraphImageHandle Renderer::AddGeometryPass(VkExtent2D renderExtent)
@@ -104,7 +104,8 @@ namespace Dlight
 					commandBuffer,
 					renderGraph.GetImageView(data.sceneColor),
 					renderGraph.GetImageView(data.sceneDepth),
-					renderExtent);
+					renderExtent,
+					viewData);
 			}
 		);
 

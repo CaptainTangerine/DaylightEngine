@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Graphics/VertexFormat.h"
+#include "Rendering/ViewData.h"
 
 #include <memory>
 #include <vector>
@@ -12,6 +13,7 @@ namespace Dlight
 	class ResourceManager;
 	class ShaderCompiler;
 	class ShaderResource;
+	class VulkanBuffer;
 	class VulkanDevice;
 	class VulkanGraphicsPipeline;
 
@@ -20,6 +22,12 @@ namespace Dlight
 	public:
 		static constexpr VkFormat DepthFormat = VK_FORMAT_D32_SFLOAT;
 
+		struct alignas(16) FPerViewUniform
+		{
+			Matrix viewMatrix;
+			Matrix projectionMatrix;
+		};
+
 		GeometryPass(VulkanDevice& device, ResourceManager& resourceManager, ShaderCompiler& shaderCompiler);
 		~GeometryPass();
 
@@ -27,15 +35,20 @@ namespace Dlight
 			VkCommandBuffer commandBuffer,
 			VkImageView sceneColorView,
 			VkImageView sceneDepthView,
-			VkExtent2D extent);
+			VkExtent2D extent,
+			const FViewData& viewData);
 
 	private:
+		void CreateViewResources();
+		void DestroyViewResources();
 		void CreateMesh();
 		void CreatePipeline();
+		void UpdateViewData(const FViewData& viewData);
 
 		VulkanDevice& device;
 		ResourceManager& resourceManager;
 		ShaderCompiler& shaderCompiler;
+
 
 		const std::vector<VertexFormat::FColoredVertex> vertices =
 		{
@@ -60,6 +73,12 @@ namespace Dlight
 		};
 
 		std::unique_ptr<MeshResource> mesh;
+
+		VkDescriptorSetLayout viewDescriptorSetLayout = { VK_NULL_HANDLE };
+		VkDescriptorPool viewDescriptorPool = { VK_NULL_HANDLE } ;
+		std::vector<VkDescriptorSet> viewDescriptorSets;
+		std::vector<std::unique_ptr<VulkanBuffer>> viewUniformBuffers;
+
 		std::unique_ptr<ShaderResource> vertexShader;
 		std::unique_ptr<ShaderResource> fragmentShader;
 		std::unique_ptr<VulkanGraphicsPipeline> pipeline;

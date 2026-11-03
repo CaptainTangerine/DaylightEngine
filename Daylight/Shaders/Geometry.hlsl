@@ -10,19 +10,22 @@ struct VSOutput
     float3 color : COLOR0;
 };
 
-struct TrasnformUniform
+struct PerViewUniform
 {
-    float4x4 model;
-    float4x4 view;
-    float4x4 projection;
+    row_major float4x4 viewMatrix;
+    row_major float4x4 projMatrix;
 };
 
+ConstantBuffer<PerViewUniform> viewUBO;
 
 VSOutput VS_Main(VSInput input)
 {
     VSOutput output;
+    float4 position = float4(input.inPosition, 1.0f);
+    position = mul(position, viewUBO.viewMatrix);
+    position = mul(position, viewUBO.projMatrix);
     
-    output.position = float4(input.inPosition, 1.0f);
+    output.position = position;
     output.color = input.inColor;
     return output;
 }

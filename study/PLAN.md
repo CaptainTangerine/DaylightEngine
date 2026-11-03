@@ -1,7 +1,21 @@
 # Vulkan Renderer · 학습 계획
 
-> 갱신: 2026-11-02 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
+> 갱신: 2026-11-03 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
 > 코드 존재, 과거 작업 보고, 현재 빌드/실행·validation 증거를 구분한다.
+
+### 2026-11-03 사용자 확인·후속 개선 — Editor Camera Orbit
+
+- Editor 카메라를 `(0, 0, -3)`에서 원점을 바라보도록 두고, 가운데 마우스 버튼이 눌린 motion의 상대 이동량으로 원점을 중심으로 yaw/pitch Orbit하도록 구현했다. pitch는 ±89°보다 약간 안쪽으로 제한한다.
+- WASD는 카메라 local forward/right, Q/E는 world Y 방향을 사용한다. 이동량은 카메라와 Orbit 중심에 함께 적용하여 이동 후 Orbit 기준점이 튀지 않게 했다. 마우스 휠은 중심을 고정하고 거리를 비례 조절하는 dolly로 동작한다.
+- 합성 SDL 입력 테스트에서 가운데 버튼 motion만 view matrix를 바꾸고, 왼쪽 버튼 및 버튼을 놓은 motion은 무시하며, 극단적인 pitch 입력에서도 유한 행렬을 유지함을 확인했다. Debug 빌드·링크와 실제 창의 초기 큐브 표시, 관찰 구간 validation warning/error 없음도 확인했다.
+- 자동 UI 도구가 가운데 버튼 hold-drag를 지원하지 않아 실제 하드웨어 드래그 자동 검증은 하지 못했다. 카메라 상대 이동과 휠 방향 보정은 합성 SDL 입력 테스트를 통과했다.
+
+### 2026-11-03 사용자 작성 중 — ViewData → UBO 연결
+
+- `Renderer → GeometryPass::Execute → UpdateViewData`의 `FViewData` 전달을 유지하고, 사용자가 GeometryPass의 frame-slot별 uniform buffer와 descriptor 생성 코드를 작성했다.
+- 사용자 요청 범위에 따라 `CreateViewResources`의 descriptor set layout 지역 변수 shadowing, descriptor pool 생성 누락, set 저장 공간 및 frame-slot별 mapped uniform buffer/descriptor write를 수정하고 생성·해제 코드만 유지했다.
+- `Geometry.hlsl`의 `row_major PerViewUniform`과 CPU `FPerViewUniform`은 view/projection 행렬 두 개의 128-byte 레이아웃을 사용한다.
+- Pipeline layout 연결과 draw 시 descriptor set binding은 사용자의 후속 학습 구현으로 남아 있다. 현재 단계는 실행 완료 상태가 아니다.
 
 ### 2026-11-02 사용자 완료 확인 — Render Graph
 

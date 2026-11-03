@@ -18,19 +18,24 @@ namespace Dlight
 		: device(_device), resourceManager(_resourceManager), shaderCompiler(_shaderCompiler)
 	{
 		CreateMesh();
+		CreateViewResources();
 		CreatePipeline();
 	}
 
 	GeometryPass::~GeometryPass()
 	{
+		DestroyViewResources();
 	}
 
 	void GeometryPass::Execute(
 		VkCommandBuffer commandBuffer,
 		VkImageView sceneColorView,
 		VkImageView sceneDepthView,
-		VkExtent2D extent)
+		VkExtent2D extent,
+		const FViewData& _viewData)
 	{
+		UpdateViewData(_viewData);
+
 		VkRenderingAttachmentInfo colorAttachment{};
 		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 		colorAttachment.imageView = sceneColorView;
@@ -68,6 +73,13 @@ namespace Dlight
 		scissor.extent = extent;
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
+		const uint32 frameSlot = device.GetCurrentFrameResource().frameSlot;
+		vkCmdBindDescriptorSets(commandBuffer,
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			pipeline->GetPipelineLayout(),
+			0, 1, &viewDescriptorSets[frameSlot], 0, nullptr
+		);
+
 		vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline->GetPipeline());
 
 		const VkBuffer vertexBuffer = mesh->GetVertexBuffer()->GetBuffer();
@@ -77,6 +89,124 @@ namespace Dlight
 		vkCmdDrawIndexed(commandBuffer, mesh->GetIndexCount(), 1, 0, 0, 0);
 
 		vkCmdEndRendering(commandBuffer);
+	}
+
+	void GeometryPass::CreateViewResources()
+	{
+		VkDescriptorSetLayoutBinding binding = {};
+		binding.binding = 0;
+		binding.descriptorCount = 1;
+		binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.bindingCount = 1;
+		layoutInfo.pBindings = &binding;
+
+		if (VK_SUCCESS != vkCreateDescriptorSetLayout(
+			device.GetDevice(),
+			&layoutInfo,
+			nullptr,
+			&viewDescriptorSetLayout))
+		{
+			DL_LOG_ERROR("Failed to create geometry view descriptor set layout");
+			std::abort();
+		}
+
+		constexpr uint32 frameCount = VulkanDevice::MaxFramesInFlight;
+
+		VkDescriptorPoolSize poolSize = {};
+		poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		poolSize.descriptorCount = frameCount;
+
+		VkDescriptorPoolCreateInfo poolInfo{};
+		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolInfo.maxSets = frameCount;
+		poolInfo.poolSizeCount = 1;
+		poolInfo.pPoolSizes = &poolSize;
+
+		if (VK_SUCCESS != vkCreateDescriptorPool(
+			device.GetDevice(),
+			&poolInfo,
+			nullptr,
+			&viewDescriptorPool))
+		{
+			DL_LOG_ERROR("Failed to create geometry view descriptor pool");
+			std::abort();
+		}
+
+		std::array<VkDescriptorSetLayout, frameCount> layouts{};
+		layouts.fill(viewDescriptorSetLayout);
+		viewDescriptorSets.resize(frameCount);
+
+		VkDescriptorSetAllocateInfo allocateInfo{};
+		allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocateInfo.descriptorPool = viewDescriptorPool;
+		allocateInfo.descriptorSetCount = frameCount;
+		allocateInfo.pSetLayouts = layouts.data();
+
+		if (VK_SUCCESS != vkAllocateDescriptorSets(
+			device.GetDevice(),
+			&allocateInfo,
+			viewDescriptorSets.data()))
+		{
+			DL_LOG_ERROR("Failed to allocate geometry view descriptor sets");
+			std::abort();
+		}
+
+		viewUniformBuffers.reserve(frameCount);
+		for (uint32 frameSlot = 0; frameSlot < frameCount; ++frameSlot)
+		{
+			FVulkanBufferDesc bufferDesc{};
+			bufferDesc.size = sizeof(FPerViewUniform);
+			bufferDesc.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+			bufferDesc.memoryUsage = VMA_MEMORY_USAGE_AUTO;
+			bufferDesc.allocationFlags =
+				VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT |
+				VMA_ALLOCATION_CREATE_MAPPED_BIT;
+
+			auto uniformBuffer = std::make_unique<VulkanBuffer>(device, bufferDesc);
+			if (uniformBuffer->GetMappedData() == nullptr)
+			{
+				DL_LOG_ERROR("Geometry view uniform buffer is not mapped");
+				std::abort();
+			}
+
+			VkDescriptorBufferInfo bufferInfo{};
+			bufferInfo.buffer = uniformBuffer->GetBuffer();
+			bufferInfo.offset = 0;
+			bufferInfo.range = sizeof(FPerViewUniform);
+
+			VkWriteDescriptorSet write{};
+			write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			write.dstSet = viewDescriptorSets[frameSlot];
+			write.dstBinding = 0;
+			write.descriptorCount = 1;
+			write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+			write.pBufferInfo = &bufferInfo;
+
+			vkUpdateDescriptorSets(device.GetDevice(), 1, &write, 0, nullptr);
+			viewUniformBuffers.push_back(std::move(uniformBuffer));
+		}
+	}
+
+	void GeometryPass::DestroyViewResources()
+	{
+		if (viewDescriptorPool != VK_NULL_HANDLE)
+		{
+			vkDestroyDescriptorPool(device.GetDevice(), viewDescriptorPool, nullptr);
+			viewDescriptorPool = VK_NULL_HANDLE;
+		}
+		viewDescriptorSets.clear();
+
+		if (viewDescriptorSetLayout != VK_NULL_HANDLE)
+		{
+			vkDestroyDescriptorSetLayout(device.GetDevice(), viewDescriptorSetLayout, nullptr);
+			viewDescriptorSetLayout = VK_NULL_HANDLE;
+		}
+
+		viewUniformBuffers.clear();
 	}
 
 	void GeometryPass::CreateMesh()
@@ -102,6 +232,21 @@ namespace Dlight
 			DL_LOG_ERROR("Failed to load cube mesh");
 			std::abort();
 		}
+	}
+
+	void GeometryPass::UpdateViewData(const FViewData& viewData)
+	{
+		const FPerViewUniform uniformData =
+		{
+			viewData.viewMatrix,
+			viewData.projectionMatrix
+		};
+
+		const uint32 frameSlot = device.GetCurrentFrameResource().frameSlot;
+
+		VulkanBuffer& viewBuffer = *viewUniformBuffers[frameSlot];
+		std::memcpy(viewBuffer.GetMappedData(), &uniformData, sizeof(uniformData));
+		viewBuffer.FlushAllocation(0, sizeof(uniformData));
 	}
 
 	void GeometryPass::CreatePipeline()
@@ -131,6 +276,7 @@ namespace Dlight
 		desc.fragmentShader = fragmentShader->GetModule();
 		desc.vertexEntryPoint = vertexShader->GetEntryPoint().c_str();
 		desc.fragmentEntryPoint = fragmentShader->GetEntryPoint().c_str();
+		desc.descriptorSetLayouts = { viewDescriptorSetLayout };
 
 		VkVertexInputBindingDescription vertexBinding{};
 		vertexBinding.binding = 0;

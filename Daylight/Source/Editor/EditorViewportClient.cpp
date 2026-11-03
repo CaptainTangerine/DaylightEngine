@@ -2,6 +2,8 @@
 #include "EditorViewportClient.h"
 #include <SDL3/SDL.h>
 
+#include <cmath>
+
 namespace Dlight
 {
     EditorViewportClient::EditorViewportClient()
@@ -15,31 +17,38 @@ namespace Dlight
 
     void EditorViewportClient::Tick(float DeltaTime)
     {
+		const Vector3 forward = Vector3::Transform(Vector3::UnitZ, camera.rotation);
+		const Vector3 right = Vector3::Transform(Vector3::UnitX, camera.rotation);
+		const float moveDistance = DeltaTime * camera.speed;
+
+		Vector3 translation = Vector3::Zero;
         if (cameraState.movingForward)
         {
-            camera.position.z += DeltaTime * camera.speed;
+			translation += forward * moveDistance;
         }
         if (cameraState.movingBackward)
         {
-            camera.position.z -= DeltaTime * camera.speed;
+			translation -= forward * moveDistance;
         }
         if (cameraState.movingLeft)
         {
-            camera.position.x -= DeltaTime * camera.speed;
+			translation -= right * moveDistance;
         }
         if (cameraState.movingRight)
         {
-            camera.position.x += DeltaTime * camera.speed;
+			translation += right * moveDistance;
         }
         if (cameraState.movingUp)
         {
-            camera.position.y += DeltaTime * camera.speed;
+			translation += Vector3::UnitY * moveDistance;
         }
         if (cameraState.movingDown)
         {
-            camera.position.y -= DeltaTime * camera.speed;
+			translation -= Vector3::UnitY * moveDistance;
         }
 
+		camera.position += translation;
+		camera.orbitTarget += translation;
     }
 
     FViewData EditorViewportClient::BuildViewData(uint32 width, uint32 height)
@@ -66,6 +75,27 @@ namespace Dlight
             cameraState = {};
             return;
         }
+
+		if (event.type == SDL_EVENT_MOUSE_MOTION)
+		{
+			if ((event.motion.state & SDL_BUTTON_MMASK) != 0)
+			{
+				camera.Orbit(event.motion.xrel, event.motion.yrel);
+			}
+			return;
+		}
+
+		if (event.type == SDL_EVENT_MOUSE_WHEEL)
+		{
+			float wheelDelta = event.wheel.y;
+			if (event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED)
+			{
+				wheelDelta = -wheelDelta;
+			}
+
+			camera.Zoom(wheelDelta);
+			return;
+		}
 
         if (event.type != SDL_EVENT_KEY_DOWN && event.type != SDL_EVENT_KEY_UP)
         {
@@ -115,4 +145,30 @@ namespace Dlight
 
         return projectionMatrix;
     }
+
+	void EditorViewportClient::EditorCamera::Orbit(float deltaX, float deltaY)
+	{
+		orbitYaw += deltaX * orbitSensitivity;
+		orbitPitch += deltaY * orbitSensitivity;
+
+		constexpr float pitchLimit = DirectX::XMConvertToRadians(89.0f);
+        orbitPitch = std::clamp(orbitPitch, -pitchLimit, pitchLimit);
+
+		rotation = Quaternion::CreateFromYawPitchRoll(orbitYaw, orbitPitch, 0.0f);
+		const Vector3 forward = Vector3::Transform(Vector3::UnitZ, rotation);
+		position = orbitTarget - forward * orbitDistance;
+	}
+
+	void EditorViewportClient::EditorCamera::Zoom(float wheelDelta)
+	{
+		constexpr float zoomFactorPerStep = 0.85f;
+		constexpr float minOrbitDistance = 0.1f;
+		constexpr float maxOrbitDistance = 1000.0f;
+
+		orbitDistance *= std::pow(zoomFactorPerStep, wheelDelta);
+		orbitDistance = std::clamp(orbitDistance, minOrbitDistance, maxOrbitDistance);
+
+		const Vector3 forward = Vector3::Transform(Vector3::UnitZ, rotation);
+		position = orbitTarget - forward * orbitDistance;
+	}
 }

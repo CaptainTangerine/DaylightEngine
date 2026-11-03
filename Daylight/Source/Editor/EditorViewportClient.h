@@ -38,6 +38,8 @@ namespace Dlight
 
             Matrix GetViewMatrix() const;
             Matrix GetProjectionMatrix() const;
+			void Orbit(float deltaX, float deltaY);
+			void Zoom(float wheelDelta);
 
         private:
             friend class EditorViewportClient;
@@ -47,8 +49,14 @@ namespace Dlight
             float aspectRatio = { 16.f / 9.f };
             float FOV = {};
 
-            Vector3    position = { };
+			Vector3    position = { 0.0f, 0.0f, -3.0f };
             Quaternion rotation = { Quaternion::Identity };
+
+			Vector3 orbitTarget = { Vector3::Zero };
+			float orbitDistance = { 3.0f };
+			float orbitYaw = { 0.0f };
+			float orbitPitch = { 0.0f };
+			float orbitSensitivity = { 0.005f };
 
             mutable Matrix projectionMatrix = { Matrix::Identity };
             mutable bool projectionDirty = { true };
