@@ -433,7 +433,7 @@ namespace Dlight
 		vertexBinding.stride = mesh->GetVertexLayout().stride;
 		vertexBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 		desc.vertexBindings.push_back(vertexBinding);
-		desc.vertexAttributes = mesh->GetVertexLayout().attributes;
+		desc.vertexAttributes = { mesh->GetVertexLayout().attributes[0], mesh->GetVertexLayout().attributes[1] };
 
 		desc.colorFormat = VulkanSwapchain::swapchainFormat;
 		desc.depthFormat = DepthFormat;

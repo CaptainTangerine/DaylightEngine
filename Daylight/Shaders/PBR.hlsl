@@ -41,6 +41,40 @@ struct VSOutput
     float3 tangentLightPosition[4] : Position2;
 };
 
+float2 ParallaxMapping(float2 texcoords, float3 tangentViewDir)
+{
+    const float minLayers = 8.0f;
+    const float maxLayers = 32.0f;
+    float numLayers = lerp(maxLayers, minLayers, saturate(dot(float3(0.0f, 0.0f, 1.0f), tangentViewDir)));
+    float layerDepth = 1.0f / numLayers;
+
+    const float heightScale = 0.02f;
+
+    float viewZ = saturate(tangentViewDir.z);
+    float safeViewZ = max(viewZ, 0.1f);
+
+    float2 p = tangentViewDir.xy / safeViewZ * heightScale;
+    float2 deltaTexcoord = p / numLayers;
+    
+    float currentLayerDepth = 0.0;
+    float currentDepthMapValue = 1.0f - heightTexture.Sample(materialSampler, texcoords).r;
+    
+    while (currentLayerDepth < currentDepthMapValue)
+    {
+        texcoords -= deltaTexcoord;
+        currentDepthMapValue = 1.0f - heightTexture.Sample(materialSampler, texcoords).r;
+
+        currentLayerDepth += layerDepth;
+    }
+
+    float2 previousTexcoords = texcoords + deltaTexcoord;
+    float afterDepth = currentDepthMapValue - currentLayerDepth;
+    float beforeDepth = 1.0f - heightTexture.Sample(materialSampler, previousTexcoords).r - currentLayerDepth + layerDepth;
+    float weight = saturate(afterDepth / (afterDepth - beforeDepth));
+
+    return lerp(texcoords, previousTexcoords, weight);
+}
+
 VSOutput VS_Main(VSInput input)
 {
     VSOutput output;
@@ -75,15 +109,18 @@ VSOutput VS_Main(VSInput input)
 // 탄젠트 공간에서 빛 공간
 float4 PS_Main(VSOutput input) : SV_Target0
 {
-    float3 baseColor = material.baseColorFactor * baseColorTexture.Sample(materialSampler, input.texcoord).rgb;
-    float metallic = material.metallicFactor * metallicTexture.Sample(materialSampler, input.texcoord).r;
-    float roughness = material.roughnessFactor * roughnessTexture.Sample(materialSampler, input.texcoord).r;
-    float ao = material.aoFactor * ambientOcclusionTexture.Sample(materialSampler, input.texcoord).r;
-
-    float3 N = normalTexture.Sample(materialSampler, input.texcoord).xyz * 2.0f - 1.0f;
-    N = normalize(N);
     
     float3 V = normalize(input.tangentViewPosition - input.tangentWorldPosition);
+    
+    float2 displacedTexCoord = ParallaxMapping(input.texcoord, V);
+ 
+    float3 N = normalTexture.Sample(materialSampler, displacedTexCoord).xyz * 2.0f - 1.0f;
+    N = normalize(N);
+    
+    float3 baseColor = material.baseColorFactor * baseColorTexture.Sample(materialSampler, displacedTexCoord).rgb;
+    float metallic = material.metallicFactor * metallicTexture.Sample(materialSampler, displacedTexCoord).r;
+    float roughness = material.roughnessFactor * roughnessTexture.Sample(materialSampler, displacedTexCoord).r;
+    float ao = material.aoFactor * ambientOcclusionTexture.Sample(materialSampler, displacedTexCoord).r;
     
     float3 F0 = float3(0.04f, 0.04f, 0.04f);
     F0 = lerp(F0, baseColor, metallic);
