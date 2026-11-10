@@ -14,6 +14,7 @@ namespace Dlight
 	class BlurPass;
 	class GeometryPass;
 	class ImagePass;
+	class ToneMappingPass;
 
 	class Renderer
 	{
@@ -41,7 +42,7 @@ namespace Dlight
 		RenderGraphImageHandle AddGeometryPass(VkExtent2D renderExtent);
 		RenderGraphImageHandle AddImagePass(VkExtent2D renderExtent);
 		FBlurGraphOutput AddBlurPass(RenderGraphImageHandle input, VkExtent2D renderExtent);
-		void AddPresentPass(RenderGraphImageHandle input, VkExtent2D renderExtent);
+		void AddToneMappingPass(RenderGraphImageHandle input, VkExtent2D renderExtent);
 
 		void Shutdown();
 
@@ -57,6 +58,7 @@ namespace Dlight
 		std::unique_ptr<Dlight::GeometryPass> geometryPass = { nullptr };
 		std::unique_ptr<Dlight::ImagePass> imagePass = { nullptr };
 		std::unique_ptr<Dlight::BlurPass> blurPass = { nullptr };
+		std::unique_ptr<Dlight::ToneMappingPass> toneMappingPass = { nullptr };
 
 		// 테스트 텍스처
 		std::unique_ptr<TextureResource> testTexture = { nullptr };

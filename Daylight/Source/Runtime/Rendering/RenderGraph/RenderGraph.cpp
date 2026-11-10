@@ -152,12 +152,13 @@ namespace Dlight
 		CreateResourceBarrier();
 	}
 
-	void RenderGraph::BindExternal(RenderGraphImageHandle handle, VkImage externalResource)
+	void RenderGraph::BindExternal(RenderGraphImageHandle handle, VkImage externalResource, VkImageView externalResourceView)
 	{
 		const RenderGraphResourceID& id = handle.GetID();
 		RenderGraphTextureResource& texture = std::get<RenderGraphTextureResource>(resources[id.index]);
 		FExternalRenderGraphTexture& resource = std::get<FExternalRenderGraphTexture>(texture);
 		resource.physicalResource = externalResource;
+		resource.physicalResourceView = externalResourceView;
 	}
 
 	void RenderGraph::BindExternal(RenderGraphBufferHandle handle, VkBuffer externalResource)
@@ -179,8 +180,11 @@ namespace Dlight
 	{
 		const RenderGraphResourceID& id = handle.GetID();
 		const RenderGraphTextureResource& texture = std::get<RenderGraphTextureResource>(resources[id.index]);
-		const FInternalRenderGraphTexture& resource = std::get<FInternalRenderGraphTexture>(texture);
-		return resource.physicalResource->GetImageView();
+		if (const FInternalRenderGraphTexture* resource = std::get_if<FInternalRenderGraphTexture>(&texture))
+		{
+			return resource->physicalResource->GetImageView();
+		}
+		return std::get<FExternalRenderGraphTexture>(texture).physicalResourceView;
 	}
 
 	void RenderGraph::Reset()

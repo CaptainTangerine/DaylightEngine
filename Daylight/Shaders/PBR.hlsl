@@ -155,8 +155,6 @@ float4 PS_Main(VSOutput input) : SV_Target0
     
     float3 ambient = float3(0.03f, 0.03f, 0.03f) * baseColor * ao;
     float3 color = ambient + Lo;
-    
-    color = color / (color + 1.0f);
    
     return float4(color, 1.f);
 }

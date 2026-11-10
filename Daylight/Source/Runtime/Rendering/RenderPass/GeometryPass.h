@@ -21,6 +21,7 @@ namespace Dlight
 	class GeometryPass
 	{
 	public:
+		static constexpr VkFormat ColorFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 		static constexpr VkFormat DepthFormat = VK_FORMAT_D32_SFLOAT;
 
 		struct alignas(16) FPerViewUniform

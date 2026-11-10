@@ -26,6 +26,7 @@ namespace Dlight
     {
         FVulkanImageDesc description;
         VkImage physicalResource = VK_NULL_HANDLE;
+        VkImageView physicalResourceView = VK_NULL_HANDLE;
         EImageState initialState = EImageState::Undefined;
         std::optional<EImageState> finalState;
     };
@@ -106,7 +107,7 @@ namespace Dlight
         // Usage 중첩 / 리소스 생성 / TODO : PassCulling, 순환구조 탐색, 위상정렬
         void Compile();
 
-        void BindExternal(RenderGraphImageHandle handle, VkImage externalResource);
+        void BindExternal(RenderGraphImageHandle handle, VkImage externalResource, VkImageView externalResourceView);
         void BindExternal(RenderGraphBufferHandle handle, VkBuffer externalResource);
 
         VkImage GetImage(RenderGraphImageHandle handle) const;

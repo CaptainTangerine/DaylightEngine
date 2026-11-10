@@ -17,4 +17,9 @@ namespace Dlight
 		float aoFactor = {};
 	};
 
+	struct FToneMappingPushConstants
+	{
+		float exposure = 1.0f;
+	};
+
 }

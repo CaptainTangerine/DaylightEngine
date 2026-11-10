@@ -10,6 +10,7 @@
 #include "Rendering/RenderPass/BlurPass.h"
 #include "Rendering/RenderPass/GeometryPass.h"
 #include "Rendering/RenderPass/ImagePass.h"
+#include "Rendering/RenderPass/ToneMappingPass.h"
 
 namespace Dlight
 {
@@ -39,6 +40,7 @@ namespace Dlight
 		geometryPass = std::make_unique<Dlight::GeometryPass>(device, resourceManager, shaderCompiler);
 		imagePass = std::make_unique<Dlight::ImagePass>(device, resourceManager, shaderCompiler);
 		imagePass->SetTexture(*testTexture);
+		toneMappingPass = std::make_unique<Dlight::ToneMappingPass>(device, shaderCompiler);
 
 		BuildRenderGraph();
 	}
@@ -57,10 +59,10 @@ namespace Dlight
 
 		//const FBlurGraphOutput blurOutput = AddBlurPass(sceneColor, renderExtent);
 
-		//AddPresentPass(blurOutput.output, renderExtent);
-		AddPresentPass(sceneColor, renderExtent);
+		AddToneMappingPass(sceneColor, renderExtent);
 
 		renderGraph.Compile();
+		toneMappingPass->SetSource(renderGraph.GetImageView(sceneColor));
 
 		//blurPass->SetResources(
 		//	renderGraph.GetImageView(sceneColor),
@@ -71,7 +73,7 @@ namespace Dlight
 	RenderGraphImageHandle Renderer::AddGeometryPass(VkExtent2D renderExtent)
 	{
 		FVulkanImageDesc sceneColorDesc = {};
-		sceneColorDesc.format = VulkanSwapchain::swapchainFormat;
+		sceneColorDesc.format = GeometryPass::ColorFormat;
 		sceneColorDesc.extent = { renderExtent.width, renderExtent.height, 1 };
 		sceneColorDesc.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 
@@ -194,50 +196,31 @@ namespace Dlight
 		};
 	}
 
-	void Renderer::AddPresentPass(RenderGraphImageHandle input, VkExtent2D renderExtent)
+	void Renderer::AddToneMappingPass(RenderGraphImageHandle input, VkExtent2D renderExtent)
 	{
 		FVulkanImageDesc backBufferDesc = {};
 		backBufferDesc.format = VulkanSwapchain::swapchainFormat;
 		backBufferDesc.extent = { renderExtent.width, renderExtent.height, 1 };
 		backBufferDesc.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 
-		struct FPresentPassData
+		struct FToneMappingPassData
 		{
-			RenderGraphImageHandle blurOutput;
+			RenderGraphImageHandle sceneColor;
 			RenderGraphImageHandle backBuffer;
 		};
 
-		renderGraph.AddPass<FPresentPassData>(
-			"PresentPass",
-			[this, input, backBufferDesc](RenderGraph::Builder& builder, FPresentPassData& data)
+		renderGraph.AddPass<FToneMappingPassData>(
+			"ToneMappingPass",
+			[this, input, backBufferDesc](RenderGraph::Builder& builder, FToneMappingPassData& data)
 			{
-				data.blurOutput = builder.Read(input, EImageState::CopySource);
+				data.sceneColor = builder.Read(input, EImageState::FragmentSampledRead);
 				data.backBuffer = builder.DeclareExternal(backBufferDesc, EImageState::Undefined, EImageState::Present);
 				renderGraphBackBuffer = data.backBuffer;
-				data.backBuffer = builder.Write(data.backBuffer, EImageState::CopyDestination);
+				data.backBuffer = builder.Write(data.backBuffer, EImageState::ColorAttachmentWrite);
 			},
-			[this, renderExtent](VkCommandBuffer commandBuffer, const FPresentPassData& data)
+			[this, renderExtent](VkCommandBuffer commandBuffer, const FToneMappingPassData& data)
 			{
-				const int32 width = static_cast<int32>(renderExtent.width);
-				const int32 height = static_cast<int32>(renderExtent.height);
-
-				VkImageBlit blitRegion = {};
-				blitRegion.srcSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-				blitRegion.srcSubresource.layerCount = 1;
-				blitRegion.srcOffsets[1] = { width, height, 1 };
-				blitRegion.dstSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-				blitRegion.dstSubresource.layerCount = 1;
-				blitRegion.dstOffsets[1] = { width, height, 1 };
-
-				vkCmdBlitImage(
-					commandBuffer,
-					renderGraph.GetImage(data.blurOutput),
-					VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-					renderGraph.GetImage(data.backBuffer),
-					VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-					1,
-					&blitRegion,
-					VK_FILTER_NEAREST);
+				toneMappingPass->Execute(commandBuffer, renderGraph.GetImageView(data.backBuffer), renderExtent);
 			});
 	}
 
@@ -246,6 +229,7 @@ namespace Dlight
 		geometryPass.reset();
 		imagePass.reset();
 		blurPass.reset();
+		toneMappingPass.reset();
 
 		testTexture.reset();
 	}
@@ -271,7 +255,7 @@ namespace Dlight
 		GPUProfiler& profiler = device.GetGPUProfiler();
 		GPUProfiler::Scope frameScope(profiler, "Render");
 
-		renderGraph.BindExternal(renderGraphBackBuffer, device.GetCurrentSwapchainImage());
+		renderGraph.BindExternal(renderGraphBackBuffer, device.GetCurrentSwapchainImage(), device.GetCurrentSwapchainImageView());
 		renderGraph.Execute(commandBuffer);
 	}
 }

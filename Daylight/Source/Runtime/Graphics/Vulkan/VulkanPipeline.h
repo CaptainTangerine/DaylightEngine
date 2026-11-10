@@ -18,6 +18,7 @@ namespace Dlight
 		std::vector<VkVertexInputBindingDescription> vertexBindings;
 		std::vector<VkVertexInputAttributeDescription> vertexAttributes;
 
+		VkCullModeFlags cullMode = VK_CULL_MODE_BACK_BIT;
 		VkFormat colorFormat = VK_FORMAT_UNDEFINED;
 		VkFormat depthFormat = VK_FORMAT_UNDEFINED;
 	};

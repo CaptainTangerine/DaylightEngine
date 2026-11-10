@@ -7,7 +7,6 @@
 #include "Graphics/Vulkan/VulkanDevice.h"
 #include "Graphics/Vulkan/VulkanPipeline.h"
 #include "Graphics/Vulkan/VulkanSampler.h"
-#include "Graphics/Vulkan/VulkanSwapchain.h"
 #include "Rendering/ShaderCompiler.h"
 #include "Rendering/ShaderConventions.h"
 #include "Rendering/RenderPass/SphereMeshData.h"
@@ -435,7 +434,7 @@ namespace Dlight
 		desc.vertexBindings.push_back(vertexBinding);
 		desc.vertexAttributes = { mesh->GetVertexLayout().attributes[0], mesh->GetVertexLayout().attributes[1] };
 
-		desc.colorFormat = VulkanSwapchain::swapchainFormat;
+		desc.colorFormat = ColorFormat;
 		desc.depthFormat = DepthFormat;
 
 		pipelineUnLit = std::make_unique<VulkanGraphicsPipeline>(device, desc);
@@ -487,7 +486,7 @@ namespace Dlight
 		desc.vertexBindings.push_back(vertexBinding);
 		desc.vertexAttributes = mesh->GetVertexLayout().attributes;
 
-		desc.colorFormat = VulkanSwapchain::swapchainFormat;
+		desc.colorFormat = ColorFormat;
 		desc.depthFormat = DepthFormat;
 
 		pipelinePBR = std::make_unique<VulkanGraphicsPipeline>(device, desc);

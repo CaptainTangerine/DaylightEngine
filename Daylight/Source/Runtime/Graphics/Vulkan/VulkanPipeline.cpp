@@ -83,7 +83,7 @@ void Dlight::VulkanGraphicsPipeline::Initialize(const FGraphicsPipelineDesc& des
 	VkPipelineRasterizationStateCreateInfo rasterizationInfo = {};
 	rasterizationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 	rasterizationInfo.polygonMode = VK_POLYGON_MODE_FILL;
-	rasterizationInfo.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizationInfo.cullMode = desc.cullMode;
 	rasterizationInfo.frontFace = VK_FRONT_FACE_CLOCKWISE;
 	rasterizationInfo.lineWidth = 1.f;
 
