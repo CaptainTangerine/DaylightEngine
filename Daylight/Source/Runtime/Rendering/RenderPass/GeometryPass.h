@@ -13,7 +13,7 @@ namespace Dlight
 	class ResourceManager;
 	class ShaderCompiler;
 	class ShaderResource;
-	class VulkanBuffer;
+	class TextureResource;
 	class VulkanBuffer;
 	class VulkanDevice;
 	class VulkanGraphicsPipeline;
@@ -47,6 +47,10 @@ namespace Dlight
 			const FViewData& viewData);
 
 	private:
+		static constexpr uint32 MaterialTextureBinding = 2;
+		static constexpr uint32 MaterialTextureCount = 6;
+		static constexpr uint32 MaterialSamplerBinding = MaterialTextureBinding + MaterialTextureCount;
+
 		void CreateUniformResources();
 		void DestroyUniformResources();
 		
@@ -79,14 +83,11 @@ namespace Dlight
 
 		std::unique_ptr<MeshResource> mesh;
 
-		// Obsidian Test
-		std::unique_ptr<VulkanImage> abedoMap;
-		std::unique_ptr<VulkanImage> normalMap;
-		std::unique_ptr<VulkanImage> heightMap;
-		std::unique_ptr<VulkanImage> metalicMap;
-		std::unique_ptr<VulkanImage> roughnessMap;
-		std::unique_ptr<VulkanImage> AmbientOcclusionMap;
-
-
+		std::unique_ptr<TextureResource> albedoMap;
+		std::unique_ptr<TextureResource> normalMap;
+		std::unique_ptr<TextureResource> heightMap;
+		std::unique_ptr<TextureResource> metallicMap;
+		std::unique_ptr<TextureResource> roughnessMap;
+		std::unique_ptr<TextureResource> ambientOcclusionMap;
 	};
 }

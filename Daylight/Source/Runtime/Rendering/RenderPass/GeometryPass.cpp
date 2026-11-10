@@ -6,6 +6,7 @@
 #include "Graphics/Vulkan/VulkanImage.h"
 #include "Graphics/Vulkan/VulkanDevice.h"
 #include "Graphics/Vulkan/VulkanPipeline.h"
+#include "Graphics/Vulkan/VulkanSampler.h"
 #include "Graphics/Vulkan/VulkanSwapchain.h"
 #include "Rendering/ShaderCompiler.h"
 #include "Rendering/ShaderConventions.h"
@@ -13,6 +14,7 @@
 #include "Resources/MeshResource.h"
 #include "Resources/ResourceManager.h"
 #include "Resources/ShaderResource.h"
+#include "Resources/TextureResource.h"
 #include "Rendering/PushConstants.h"
 
 namespace Dlight
@@ -21,6 +23,7 @@ namespace Dlight
 		: device(_device), resourceManager(_resourceManager), shaderCompiler(_shaderCompiler)
 	{
 		CreateMesh();
+		CreateImages();
 		CreateUniformResources();
 		CreatePipelineUnLit();
 		CreatePipelinePBR();
@@ -77,10 +80,7 @@ namespace Dlight
 		scissor.extent = extent;
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-		FPBRMaterial material = { { 1.f, 0.f, 0.f} };
-		material.metallicFactor = { 1.f };
-		material.roughnessFactor = { 0.5f };
-		material.aoFactor = { 1.f };
+		FPBRMaterial material = { { 1.f, 1.f, 1.f }, 1.f, 1.f, 1.f };
 		vkCmdPushConstants(commandBuffer, pipelinePBR->GetPipelineLayout(), VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(FPBRMaterial), &material);
 
 		const uint32 frameSlot = device.GetCurrentFrameResource().frameSlot;
@@ -102,7 +102,7 @@ namespace Dlight
 
 	void GeometryPass::CreateUniformResources()
 	{
-		std::array<VkDescriptorSetLayoutBinding, 2> bindings = {};
+		std::array<VkDescriptorSetLayoutBinding, MaterialSamplerBinding + 1> bindings = {};
 		
 		bindings[0].binding = 0;
 		bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -112,7 +112,21 @@ namespace Dlight
 		bindings[1].binding = 1;
 		bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		bindings[1].descriptorCount = 1;
-		bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		bindings[1].stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		for (uint32 textureIndex = 0; textureIndex < MaterialTextureCount; ++textureIndex)
+		{
+			VkDescriptorSetLayoutBinding& textureBinding = bindings[MaterialTextureBinding + textureIndex];
+			textureBinding.binding = MaterialTextureBinding + textureIndex;
+			textureBinding.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+			textureBinding.descriptorCount = 1;
+			textureBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		}
+
+		bindings[MaterialSamplerBinding].binding = MaterialSamplerBinding;
+		bindings[MaterialSamplerBinding].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+		bindings[MaterialSamplerBinding].descriptorCount = 1;
+		bindings[MaterialSamplerBinding].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
 		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
@@ -131,15 +145,19 @@ namespace Dlight
 
 		constexpr uint32 frameCount = VulkanDevice::MaxFramesInFlight;
 
-		VkDescriptorPoolSize poolSize = {};
-		poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		poolSize.descriptorCount = frameCount * 2;
+		std::array<VkDescriptorPoolSize, 3> poolSizes{};
+		poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		poolSizes[0].descriptorCount = frameCount * 2;
+		poolSizes[1].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+		poolSizes[1].descriptorCount = frameCount * MaterialTextureCount;
+		poolSizes[2].type = VK_DESCRIPTOR_TYPE_SAMPLER;
+		poolSizes[2].descriptorCount = frameCount;
 
 		VkDescriptorPoolCreateInfo poolInfo{};
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 		poolInfo.maxSets = frameCount;
-		poolInfo.poolSizeCount = 1;
-		poolInfo.pPoolSizes = &poolSize;
+		poolInfo.poolSizeCount = static_cast<uint32>(poolSizes.size());
+		poolInfo.pPoolSizes = poolSizes.data();
 
 		if (VK_SUCCESS != vkCreateDescriptorPool(
 			device.GetDevice(),
@@ -207,7 +225,20 @@ namespace Dlight
 			lightBufferInfo.offset = 0;
 			lightBufferInfo.range = sizeof(FLightUniform);
 
-			std::array<VkWriteDescriptorSet, 2> writes{};
+			const std::array<const TextureResource*, MaterialTextureCount> materialTextures = { albedoMap.get(), normalMap.get(), heightMap.get(), metallicMap.get(), roughnessMap.get(), ambientOcclusionMap.get() };
+
+			std::array<VkDescriptorImageInfo, MaterialTextureCount> textureInfos{};
+			for (uint32 textureIndex = 0; textureIndex < MaterialTextureCount; ++textureIndex)
+			{
+				const TextureResource* textureResource = materialTextures[textureIndex];
+				textureInfos[textureIndex].imageView = textureResource->GetImage()->GetImageView();
+				textureInfos[textureIndex].imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+			}
+
+			VkDescriptorImageInfo samplerInfo{};
+			samplerInfo.sampler = albedoMap->GetSampler()->GetSampler();
+
+			std::array<VkWriteDescriptorSet, MaterialSamplerBinding + 1> writes{};
 
 			writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 			writes[0].dstSet = descriptorSets[frameSlot];
@@ -222,6 +253,24 @@ namespace Dlight
 			writes[1].descriptorCount = 1;
 			writes[1].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 			writes[1].pBufferInfo = &lightBufferInfo;
+
+			for (uint32 textureIndex = 0; textureIndex < MaterialTextureCount; ++textureIndex)
+			{
+				VkWriteDescriptorSet& textureWrite = writes[MaterialTextureBinding + textureIndex];
+				textureWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+				textureWrite.dstSet = descriptorSets[frameSlot];
+				textureWrite.dstBinding = MaterialTextureBinding + textureIndex;
+				textureWrite.descriptorCount = 1;
+				textureWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+				textureWrite.pImageInfo = &textureInfos[textureIndex];
+			}
+
+			writes[MaterialSamplerBinding].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writes[MaterialSamplerBinding].dstSet = descriptorSets[frameSlot];
+			writes[MaterialSamplerBinding].dstBinding = MaterialSamplerBinding;
+			writes[MaterialSamplerBinding].descriptorCount = 1;
+			writes[MaterialSamplerBinding].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+			writes[MaterialSamplerBinding].pImageInfo = &samplerInfo;
 
 			vkUpdateDescriptorSets(device.GetDevice(), static_cast<uint32>(writes.size()), writes.data(), 0, nullptr);
 			viewUniformBuffers.push_back(std::move(viewUniformBuffer));
@@ -283,7 +332,7 @@ namespace Dlight
 		std::memcpy(meshData.vertexData.data(), sphere.vertices.data(), meshData.vertexData.size());
 		meshData.indices = sphere.indices;
 		meshData.layout.stride = sizeof(VertexFormat::FPBRVertex);
-		meshData.layout.attributes.resize(3);
+		meshData.layout.attributes.resize(5);
 		meshData.layout.attributes[0].location = 0;
 		meshData.layout.attributes[0].binding = 0;
 		meshData.layout.attributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
@@ -296,6 +345,14 @@ namespace Dlight
 		meshData.layout.attributes[2].binding = 0;
 		meshData.layout.attributes[2].format = VK_FORMAT_R32G32B32_SFLOAT;
 		meshData.layout.attributes[2].offset = offsetof(VertexFormat::FPBRVertex, normal);
+		meshData.layout.attributes[3].location = 3;
+		meshData.layout.attributes[3].binding = 0;
+		meshData.layout.attributes[3].format = VK_FORMAT_R32G32_SFLOAT;
+		meshData.layout.attributes[3].offset = offsetof(VertexFormat::FPBRVertex, texcoord);
+		meshData.layout.attributes[4].location = 4;
+		meshData.layout.attributes[4].binding = 0;
+		meshData.layout.attributes[4].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+		meshData.layout.attributes[4].offset = offsetof(VertexFormat::FPBRVertex, tangent);
 
 		mesh = std::make_unique<MeshResource>("Sphere", device, std::move(meshData));
 		if (!mesh->Load())
@@ -307,7 +364,23 @@ namespace Dlight
 
 	void GeometryPass::CreateImages()
 	{
+		albedoMap = std::make_unique<TextureResource>("GoldNugget.Albedo", device, Paths::GetAssetPath(L"Model/gold-nugget-ue/gold-nugget1_albedo.png"), ETextureSemantic::BaseColor);
+		normalMap = std::make_unique<TextureResource>("GoldNugget.Normal", device, Paths::GetAssetPath(L"Model/gold-nugget-ue/gold-nugget1_normal-dx.png"), ETextureSemantic::Normal);
+		heightMap = std::make_unique<TextureResource>("GoldNugget.Height", device, Paths::GetAssetPath(L"Model/gold-nugget-ue/gold-nugget1_height.png"), ETextureSemantic::Height);
+		metallicMap = std::make_unique<TextureResource>("GoldNugget.Metallic", device, Paths::GetAssetPath(L"Model/gold-nugget-ue/gold-nugget1_metallic.png"), ETextureSemantic::Metallic);
+		roughnessMap = std::make_unique<TextureResource>("GoldNugget.Roughness", device, Paths::GetAssetPath(L"Model/gold-nugget-ue/gold-nugget1_roughness.png"), ETextureSemantic::Roughness);
+		ambientOcclusionMap = std::make_unique<TextureResource>("GoldNugget.AmbientOcclusion", device, Paths::GetAssetPath(L"Model/gold-nugget-ue/gold-nugget1_ao.png"), ETextureSemantic::AmbientOcclusion);
 
+		const std::array<TextureResource*, MaterialTextureCount> materialTextures = { albedoMap.get(), normalMap.get(), heightMap.get(), metallicMap.get(), roughnessMap.get(), ambientOcclusionMap.get() };
+
+		for (TextureResource* texture : materialTextures)
+		{
+			if (!texture->Load())
+			{
+				DL_LOG_ERROR("Failed to load material texture resource: ", texture->GetID());
+				std::abort();
+			}
+		}
 	}
 
 	void GeometryPass::UpdateViewData(const FViewData& viewData)

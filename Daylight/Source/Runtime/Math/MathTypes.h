@@ -17,4 +17,5 @@ namespace Dlight
     using OrientedBoundingBox = DirectX::BoundingOrientedBox;
     using BoundingFrustum = DirectX::BoundingFrustum;
     using BoundingSphere = DirectX::BoundingSphere;
+
 }

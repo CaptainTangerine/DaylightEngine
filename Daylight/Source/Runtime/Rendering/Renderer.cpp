@@ -29,8 +29,7 @@ namespace Dlight
 		//blurPass = std::make_unique<Dlight::BlurPass>(device, resourceManager, shaderCompiler);
 
 		const std::filesystem::path imagePath = Paths::GetAssetPath(L"Image/Test.jpg");
-		FTextureRaw textureData = { Image(imagePath.string()), {} };
-		testTexture = std::make_unique<TextureResource>("ImageTest", device, std::move(textureData));
+		testTexture = std::make_unique<TextureResource>("ImageTest", device, imagePath);
 		if (!testTexture->Load())
 		{
 			DL_LOG_ERROR("Failed to load test texture");

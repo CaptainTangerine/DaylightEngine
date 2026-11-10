@@ -2,6 +2,67 @@
 #include "VulkanImage.h"
 #include "VulkanDevice.h"
 
+std::unique_ptr<Dlight::VulkanImage> Dlight::VulkanImage::whiteDefaultImage;
+std::unique_ptr<Dlight::VulkanImage> Dlight::VulkanImage::blackDefaultImage;
+std::unique_ptr<Dlight::VulkanImage> Dlight::VulkanImage::flatNormalDefaultImage;
+
+void Dlight::VulkanImage::InitializeDefaultImage(VulkanDevice& device)
+{
+	if (whiteDefaultImage && blackDefaultImage && flatNormalDefaultImage)
+	{
+		return;
+	}
+
+	constexpr std::array<uint8, 4> WhitePixel = { 255, 255, 255, 255 };
+	constexpr std::array<uint8, 4> BlackPixel = { 0, 0, 0, 255 };
+	constexpr std::array<uint8, 4> FlatNormalPixel = { 128, 128, 255, 255 };
+
+	FVulkanImageDesc imageDesc{};
+	imageDesc.format = VK_FORMAT_R8G8B8A8_UNORM;
+	imageDesc.extent = { 1, 1, 1 };
+	imageDesc.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+
+	whiteDefaultImage = std::make_unique<VulkanImage>(device, imageDesc);
+	blackDefaultImage = std::make_unique<VulkanImage>(device, imageDesc);
+	flatNormalDefaultImage = std::make_unique<VulkanImage>(device, imageDesc);
+
+	device.UploadImage(*whiteDefaultImage, WhitePixel.data(), WhitePixel.size(), EImageState::FragmentSampledRead);
+	device.UploadImage(*blackDefaultImage, BlackPixel.data(), BlackPixel.size(), EImageState::FragmentSampledRead);
+	device.UploadImage(*flatNormalDefaultImage, FlatNormalPixel.data(), FlatNormalPixel.size(), EImageState::FragmentSampledRead);
+}
+
+void Dlight::VulkanImage::DestroyDefaultImage()
+{
+	whiteDefaultImage.reset();
+	blackDefaultImage.reset();
+	flatNormalDefaultImage.reset();
+}
+
+const Dlight::VulkanImage& Dlight::VulkanImage::GetDefaultImage(EDefaultImage type)
+{
+	const VulkanImage* defaultImage = nullptr;
+	switch (type)
+	{
+	case EDefaultImage::White:
+		defaultImage = whiteDefaultImage.get();
+		break;
+	case EDefaultImage::Black:
+		defaultImage = blackDefaultImage.get();
+		break;
+	case EDefaultImage::FlatNormal:
+		defaultImage = flatNormalDefaultImage.get();
+		break;
+	}
+
+	if (!defaultImage)
+	{
+		DL_LOG_ERROR("Default Vulkan image has not been initialized");
+		std::abort();
+	}
+
+	return *defaultImage;
+}
+
 Dlight::VulkanImage::VulkanImage(
 	VulkanDevice& _device,
 	const FVulkanImageDesc& desc)

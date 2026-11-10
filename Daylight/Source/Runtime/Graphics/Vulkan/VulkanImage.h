@@ -4,9 +4,18 @@
 #include "vulkan/vulkan.h"
 #include <vma/vk_mem_alloc.h>
 
+#include <memory>
+
 namespace Dlight
 {
 	class VulkanDevice;
+
+	enum class EDefaultImage
+	{
+		White,
+		Black,
+		FlatNormal
+	};
 
 	struct FVulkanImageDesc
 	{
@@ -38,6 +47,10 @@ namespace Dlight
 		VulkanImage& operator=(VulkanImage&&) = delete;
 
 	public:
+		static void InitializeDefaultImage(VulkanDevice& device);
+		static void DestroyDefaultImage();
+		static const VulkanImage& GetDefaultImage(EDefaultImage type);
+
 		VkImage GetImage() const { return image; };
 		VkImageView GetImageView() const { return imageView; };
 		VkImageUsageFlags GetUsage() const { return usage; };
@@ -56,5 +69,9 @@ namespace Dlight
 		uint32 width = {};
 		uint32 height = {};
 		VkImageUsageFlags usage = {};
+
+		static std::unique_ptr<VulkanImage> whiteDefaultImage;
+		static std::unique_ptr<VulkanImage> blackDefaultImage;
+		static std::unique_ptr<VulkanImage> flatNormalDefaultImage;
 	};
 }

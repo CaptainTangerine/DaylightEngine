@@ -11,6 +11,7 @@ namespace Dlight
 		~Image() = default;
 
 	public:
+		bool IsValid() const { return !pixels.empty(); }
 		int32 GetWidth() const { return texWidth; };
 		int32 GetHeight() const { return texHeight; };
 		int32 GetDepth() const { return depth; };

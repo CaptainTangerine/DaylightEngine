@@ -12,8 +12,8 @@ Dlight::Image::Image(std::string_view filePath)
 	stbi_uc* _pixels = stbi_load(path.c_str(), &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
 	if (!_pixels)
 	{
-		DL_LOG_ERROR("Failed to load texture image: ", path);
-		std::abort();
+		DL_LOG_WARN("Failed to load texture image: ", path);
+		return;
 	}
 
 	pixels.resize(static_cast<size_t>(texWidth) * texHeight * 4);

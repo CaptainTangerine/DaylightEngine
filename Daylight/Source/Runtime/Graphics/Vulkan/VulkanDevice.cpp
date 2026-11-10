@@ -609,6 +609,7 @@ namespace Dlight
 			throw std::runtime_error("Can't create smapler descriptor set");
 		}
 
+		VulkanImage::InitializeDefaultImage(*this);
 		gpuProfiler = std::make_unique<GPUProfiler>(*this, MaxFramesInFlight);
 	}
 
@@ -616,6 +617,7 @@ namespace Dlight
 	{
 		// Engine::Shutdown에서 디바이스의 GPU 작업 완료를 기다린 뒤 자원을 해제한다.
 		gpuProfiler.reset();
+		VulkanImage::DestroyDefaultImage();
 		DestroyDescriptors();
 
 		if (timelineSemaphore)
