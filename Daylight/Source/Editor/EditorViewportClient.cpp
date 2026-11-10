@@ -65,6 +65,7 @@ namespace Dlight
         FViewData viewData = {};
         viewData.viewMatrix = camera.GetViewMatrix();
         viewData.projectionMatrix = camera.GetProjectionMatrix();
+        viewData.cameraPosition = camera.position;
         return viewData;
     }
 

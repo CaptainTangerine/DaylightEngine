@@ -14,9 +14,10 @@ namespace Dlight
 	class ShaderCompiler;
 	class ShaderResource;
 	class VulkanBuffer;
+	class VulkanBuffer;
 	class VulkanDevice;
 	class VulkanGraphicsPipeline;
-
+	
 	class GeometryPass
 	{
 	public:
@@ -26,6 +27,13 @@ namespace Dlight
 		{
 			Matrix viewMatrix;
 			Matrix projectionMatrix;
+			Vector3 cameraPosition;
+		};
+
+		struct alignas(16) FLightUniform
+		{
+			Vector4 positions[4];
+			Vector4 colors[4];
 		};
 
 		GeometryPass(VulkanDevice& device, ResourceManager& resourceManager, ShaderCompiler& shaderCompiler);
@@ -39,10 +47,14 @@ namespace Dlight
 			const FViewData& viewData);
 
 	private:
-		void CreateViewResources();
-		void DestroyViewResources();
+		void CreateUniformResources();
+		void DestroyUniformResources();
+		
 		void CreateMesh();
-		void CreatePipeline();
+		void CreateImages();
+
+		void CreatePipelineUnLit();
+		void CreatePipelinePBR();
 		void UpdateViewData(const FViewData& viewData);
 
 		VulkanDevice& device;
@@ -50,37 +62,31 @@ namespace Dlight
 		ShaderCompiler& shaderCompiler;
 
 
-		const std::vector<VertexFormat::FColoredVertex> vertices =
-		{
-			{{-0.5f, -0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-			{{ 0.5f, -0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
-			{{ 0.5f,  0.5f, -0.5f}, {0.0f, 0.0f, 1.0f}},
-			{{-0.5f,  0.5f, -0.5f}, {1.0f, 1.0f, 0.0f}},
-			{{-0.5f, -0.5f,  0.5f}, {1.0f, 0.0f, 1.0f}},
-			{{ 0.5f, -0.5f,  0.5f}, {0.0f, 1.0f, 1.0f}},
-			{{ 0.5f,  0.5f,  0.5f}, {1.0f, 1.0f, 1.0f}},
-			{{-0.5f,  0.5f,  0.5f}, {1.0f, 0.5f, 0.0f}}
-		};
+		VkDescriptorPool descriptorPool;
+		VkDescriptorSetLayout descriptorSetLayout;
+		std::vector<VkDescriptorSet> descriptorSets;
 
-		const std::vector<uint32> indices =
-		{
-			0, 3, 2, 0, 2, 1,
-			4, 5, 6, 4, 6, 7,
-			0, 4, 7, 0, 7, 3,
-			1, 2, 6, 1, 6, 5,
-			0, 1, 5, 0, 5, 4,
-			3, 7, 6, 3, 6, 2
-		};
+		std::vector<std::unique_ptr<VulkanBuffer>> viewUniformBuffers;
+		std::vector<std::unique_ptr<VulkanBuffer>> lightUniformBuffers;
+
+		std::unique_ptr<ShaderResource> vertexShaderUnLit;
+		std::unique_ptr<ShaderResource> fragmentShaderUnLit;
+		std::unique_ptr<ShaderResource> vertexShaderPBR;
+		std::unique_ptr<ShaderResource> fragmentShaderPBR;
+		std::unique_ptr<VulkanGraphicsPipeline> pipelineUnLit;
+		std::unique_ptr<VulkanGraphicsPipeline> pipelinePBR;
+
 
 		std::unique_ptr<MeshResource> mesh;
 
-		VkDescriptorSetLayout viewDescriptorSetLayout = { VK_NULL_HANDLE };
-		VkDescriptorPool viewDescriptorPool = { VK_NULL_HANDLE } ;
-		std::vector<VkDescriptorSet> viewDescriptorSets;
-		std::vector<std::unique_ptr<VulkanBuffer>> viewUniformBuffers;
+		// Obsidian Test
+		std::unique_ptr<VulkanImage> abedoMap;
+		std::unique_ptr<VulkanImage> normalMap;
+		std::unique_ptr<VulkanImage> heightMap;
+		std::unique_ptr<VulkanImage> metalicMap;
+		std::unique_ptr<VulkanImage> roughnessMap;
+		std::unique_ptr<VulkanImage> AmbientOcclusionMap;
 
-		std::unique_ptr<ShaderResource> vertexShader;
-		std::unique_ptr<ShaderResource> fragmentShader;
-		std::unique_ptr<VulkanGraphicsPipeline> pipeline;
+
 	};
 }

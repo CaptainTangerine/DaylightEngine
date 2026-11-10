@@ -9,5 +9,6 @@ namespace Dlight
     {
         Matrix viewMatrix = { Matrix::Identity };
         Matrix projectionMatrix = { Matrix::Identity };
+        Vector3 cameraPosition = { Vector3::Zero };
     };
 }

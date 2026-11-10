@@ -1,7 +1,14 @@
 # Vulkan Renderer · 학습 계획
 
-> 갱신: 2026-11-03 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
+> 갱신: 2026-11-09 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
 > 코드 존재, 과거 작업 보고, 현재 빌드/실행·validation 증거를 구분한다.
+
+### 2026-11-09 구현·화면 확인 — 단색 빨간 구 지오메트리
+
+- 사용자 요청에 따라 기존 하드코딩 큐브 데이터를 반지름 0.75, 위도 32분할·경도 64분할 UV 구 데이터로 교체하고 `SphereMeshData.h`로 분리했다.
+- `FColoredNormalVertex`는 position/color/normal을 가지며, 모든 정점 색은 빨강이고 normal은 단위 구의 위치 방향이다. `Unlit.hlsl` 입력에 `NORMAL0` 형식만 연결했으며 조명 계산에는 사용하지 않는다.
+- Visual Studio 개발자 환경에서 windows-debug 컴파일·링크 성공을 확인했다. 실제 1280×720 창에서 회색 배경 위 단색 빨간 구 출력과 창 종료를 확인했다.
+- 이번 실행은 화면 출력 확인이며 validation 메시지 캡처는 별도로 수집하지 않았다. 조명·PBR 구현은 후속 과제로 남긴다.
 
 ### 2026-11-03 사용자 확인·후속 개선 — Editor Camera Orbit
 
@@ -14,7 +21,7 @@
 
 - `Renderer → GeometryPass::Execute → UpdateViewData`의 `FViewData` 전달을 유지하고, 사용자가 GeometryPass의 frame-slot별 uniform buffer와 descriptor 생성 코드를 작성했다.
 - 사용자 요청 범위에 따라 `CreateViewResources`의 descriptor set layout 지역 변수 shadowing, descriptor pool 생성 누락, set 저장 공간 및 frame-slot별 mapped uniform buffer/descriptor write를 수정하고 생성·해제 코드만 유지했다.
-- `Geometry.hlsl`의 `row_major PerViewUniform`과 CPU `FPerViewUniform`은 view/projection 행렬 두 개의 128-byte 레이아웃을 사용한다.
+- 현재 `Unlit.hlsl`로 이름을 바꾼 셰이더의 `row_major PerViewUniform`과 CPU `FPerViewUniform`은 view/projection 행렬 두 개의 128-byte 레이아웃을 사용한다.
 - Pipeline layout 연결과 draw 시 descriptor set binding은 사용자의 후속 학습 구현으로 남아 있다. 현재 단계는 실행 완료 상태가 아니다.
 
 ### 2026-11-02 사용자 완료 확인 — Render Graph

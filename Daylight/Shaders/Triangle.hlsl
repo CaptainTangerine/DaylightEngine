@@ -1,7 +1,7 @@
 struct VSInput
 {
-    [[vk::location(0)]] float2 inPosition : POSITION;
-    [[vk::location(1)]] float3 inColor : COLOR0;
+   float2 inPosition : POSITION;
+   float3 inColor : COLOR0;
 };
 
 struct VSOutput

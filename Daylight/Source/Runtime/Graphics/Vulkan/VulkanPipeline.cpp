@@ -20,7 +20,13 @@ void Dlight::VulkanGraphicsPipeline::Initialize(const FGraphicsPipelineDesc& des
 	VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
 	pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
 	pipelineLayoutInfo.setLayoutCount = static_cast<uint32>(desc.descriptorSetLayouts.size());
-	pipelineLayoutInfo.pSetLayouts = desc.descriptorSetLayouts.data();
+	pipelineLayoutInfo.pSetLayouts = desc.descriptorSetLayouts.empty()
+		? nullptr
+		: desc.descriptorSetLayouts.data();
+	pipelineLayoutInfo.pushConstantRangeCount = static_cast<uint32>(desc.pushConstantRanges.size());
+	pipelineLayoutInfo.pPushConstantRanges = desc.pushConstantRanges.empty()
+		? nullptr
+		: desc.pushConstantRanges.data();
 
 	if (VK_SUCCESS != vkCreatePipelineLayout(device.GetDevice(), &pipelineLayoutInfo, nullptr, &pipelineLayout))
 	{

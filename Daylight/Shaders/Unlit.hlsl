@@ -1,22 +1,11 @@
-struct VSInput
-{
-    float3 inPosition : POSITION;
-    float3 inColor : COLOR0;
-};
+#include "Common/VertexInput.hlsli"
+#include "Common/PerView.hlsli"
 
 struct VSOutput
 {
     float4 position : SV_Position;
     float3 color : COLOR0;
 };
-
-struct PerViewUniform
-{
-    row_major float4x4 viewMatrix;
-    row_major float4x4 projMatrix;
-};
-
-ConstantBuffer<PerViewUniform> viewUBO;
 
 VSOutput VS_Main(VSInput input)
 {

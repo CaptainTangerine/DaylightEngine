@@ -39,6 +39,7 @@ namespace Dlight
 		FrameClock::time_point previousFrameTime = {};
 		FrameClock::time_point logSampleStart = {};
 		float deltaTime = { 0.0f };
+		uint64 frameCountSinceLog = { 0 };
 
 		std::unique_ptr<Engine> engine = { nullptr };
 		std::unique_ptr<EditorViewportClient> viewportClient = { nullptr };

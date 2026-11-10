@@ -9,5 +9,12 @@ namespace Dlight
 		std::int32_t Direction[2] = {};
 	};
 
-	static_assert(sizeof(FBlurPushConstants) == 8, "Blur push constants must match HLSL int2 (8 bytes)");
+	struct FPBRMaterial
+	{
+		float baseColorFactor[3] = {};
+		float metallicFactor = {};
+		float roughnessFactor = {};
+		float aoFactor = {};
+	};
+
 }

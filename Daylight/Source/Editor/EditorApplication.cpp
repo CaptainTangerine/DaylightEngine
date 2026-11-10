@@ -170,6 +170,7 @@ namespace Dlight
 		previousFrameTime = now;
 		logSampleStart = now;
 		deltaTime = 0.0f;
+		frameCountSinceLog = 0;
 	}
 
 	void EditorApplication::UpdateDeltaTime()
@@ -186,11 +187,15 @@ namespace Dlight
 			return;
 		}
 
+		++frameCountSinceLog;
+
 		const auto now = FrameClock::now();
-		if (now - logSampleStart >= std::chrono::seconds(1))
+		const std::chrono::duration<double> sampleDuration = now - logSampleStart;
+		if (sampleDuration >= std::chrono::seconds(1))
 		{
-			const float fps = 1.0f / deltaTime;
-			const float frameTime = deltaTime * 1000.0f;
+			const double elapsedSeconds = sampleDuration.count();
+			const double fps = static_cast<double>(frameCountSinceLog) / elapsedSeconds;
+			const double frameTime = elapsedSeconds * 1000.0 / static_cast<double>(frameCountSinceLog);
 
 			std::ostringstream title;
 			title << std::fixed << std::setprecision(2)
@@ -201,6 +206,7 @@ namespace Dlight
 			SDL_SetWindowTitle(window, titleText.c_str());
 			DL_LOG_INFO(titleText);
 			logSampleStart = now;
+			frameCountSinceLog = 0;
 		}
 	}
 
