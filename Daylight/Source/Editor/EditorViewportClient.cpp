@@ -79,7 +79,8 @@ namespace Dlight
 
 		if (event.type == SDL_EVENT_MOUSE_MOTION)
 		{
-			if ((event.motion.state & SDL_BUTTON_MMASK) != 0)
+			if ((event.motion.state & SDL_BUTTON_LMASK) != 0 &&
+				(SDL_GetModState() & SDL_KMOD_ALT) != 0)
 			{
 				camera.Orbit(event.motion.xrel, event.motion.yrel);
 			}
