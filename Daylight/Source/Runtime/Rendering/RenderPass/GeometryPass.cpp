@@ -46,7 +46,7 @@ namespace Dlight
 		colorAttachment.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
 		colorAttachment.imageView = sceneColorView;
 		colorAttachment.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+		colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
 		colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 		colorAttachment.clearValue.color = { 0.22f, 0.22f, 0.22f, 1.f };
 
@@ -388,6 +388,8 @@ namespace Dlight
 		{
 			viewData.viewMatrix,
 			viewData.projectionMatrix,
+			viewData.viewMatrix.Invert(),
+			viewData.projectionMatrix.Invert(),
 			viewData.cameraPosition
 		};
 

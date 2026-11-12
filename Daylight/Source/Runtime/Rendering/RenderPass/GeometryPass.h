@@ -24,13 +24,6 @@ namespace Dlight
 		static constexpr VkFormat ColorFormat = VK_FORMAT_R16G16B16A16_SFLOAT;
 		static constexpr VkFormat DepthFormat = VK_FORMAT_D32_SFLOAT;
 
-		struct alignas(16) FPerViewUniform
-		{
-			Matrix viewMatrix;
-			Matrix projectionMatrix;
-			Vector3 cameraPosition;
-		};
-
 		struct alignas(16) FLightUniform
 		{
 			Vector4 positions[4];

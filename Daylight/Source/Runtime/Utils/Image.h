@@ -19,6 +19,8 @@ namespace Dlight
 		VkFormat GetFormat() const { return format; };
 
 		void* GetData() { return pixels.data(); };
+		const void* GetData() const { return pixels.data(); };
+
 		uint64 GetSize() const { return pixels.size(); };
 
 	private:

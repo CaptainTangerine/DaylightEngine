@@ -1,5 +1,7 @@
 #pragma once
-static const float PI = 3.14159265359;
+
+#include "Math.hlsli"
+
 // Normal Deistribution Function (D)
 // NDF throwbridge-ReitZ GGX
 float DistributionGGX(float3 N, float3 H, float roughness)

@@ -22,4 +22,9 @@ namespace Dlight
 		float exposure = 1.0f;
 	};
 
+	struct FEnvironmentFacePushConstants
+	{
+		std::uint32_t faceIndex = 0;
+	};
+
 }

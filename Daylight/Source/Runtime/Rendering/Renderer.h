@@ -14,7 +14,9 @@ namespace Dlight
 	class BlurPass;
 	class GeometryPass;
 	class ImagePass;
+	class SkyPass;
 	class ToneMappingPass;
+	class EnvironmentMapGenerator;
 
 	class Renderer
 	{
@@ -37,9 +39,11 @@ namespace Dlight
 		};
 
 		void Initialize();
+		void PrepareEnvironmentMaps();
 		void BuildRenderGraph();
 
-		RenderGraphImageHandle AddGeometryPass(VkExtent2D renderExtent);
+		RenderGraphImageHandle AddSkyPass(VkExtent2D renderExtent);
+		RenderGraphImageHandle AddGeometryPass(RenderGraphImageHandle sceneColor, VkExtent2D renderExtent);
 		RenderGraphImageHandle AddImagePass(VkExtent2D renderExtent);
 		FBlurGraphOutput AddBlurPass(RenderGraphImageHandle input, VkExtent2D renderExtent);
 		void AddToneMappingPass(RenderGraphImageHandle input, VkExtent2D renderExtent);
@@ -49,15 +53,17 @@ namespace Dlight
 	private:
 		VulkanDevice& device;
 		ResourceManager& resourceManager;
-		RenderGraph renderGraph;
-
+		std::unique_ptr<EnvironmentMapGenerator> environmentMapGenerator = { nullptr };
 		ShaderCompiler shaderCompiler;
+
+		RenderGraph renderGraph;
 		RenderGraphImageHandle renderGraphBackBuffer = {};
 		FViewData viewData = {};
 
 		std::unique_ptr<Dlight::GeometryPass> geometryPass = { nullptr };
 		std::unique_ptr<Dlight::ImagePass> imagePass = { nullptr };
 		std::unique_ptr<Dlight::BlurPass> blurPass = { nullptr };
+		std::unique_ptr<Dlight::SkyPass> skyPass = { nullptr };
 		std::unique_ptr<Dlight::ToneMappingPass> toneMappingPass = { nullptr };
 
 		// 테스트 텍스처

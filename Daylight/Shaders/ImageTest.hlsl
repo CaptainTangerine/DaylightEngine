@@ -1,10 +1,10 @@
-[[vk::binding(0, 0)]] Texture2D<float4> textures[64];
-[[vk::binding(0, 1)]] SamplerState imageSampler;
+Texture2D<float4> textures[64];
+SamplerState imageSampler;
 
 struct VSInput
 {
-    [[vk::location(0)]] float2 inPosition : POSITION;
-    [[vk::location(1)]] float2 inTexCoord : TEXCOORD0;
+    float2 inPosition : POSITION;
+    float2 inTexCoord : TEXCOORD0;
 };
 
 struct VSOutput

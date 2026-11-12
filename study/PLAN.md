@@ -1,7 +1,17 @@
 # Vulkan Renderer · 학습 계획
 
-> 갱신: 2026-11-11 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
+> 갱신: 2026-11-12 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
 > 코드 존재, 과거 작업 보고, 현재 빌드/실행·validation 증거를 구분한다.
+
+### 2026-11-12 사용자 요청 구현·검증 — HDR 이미지 로딩
+
+- `Image`가 Radiance HDR 파일을 감지하면 `stbi_loadf`로 RGBA float 데이터를 읽고 `VK_FORMAT_R32G32B32A32_SFLOAT` 선형 포맷과 정확한 byte size를 보존하도록 변경했다. 기존 LDR은 RGBA8 sRGB 경로를 유지한다.
+- `TextureResource`는 HDR의 source format을 GPU 이미지에 그대로 사용하며, 기존 normal/metallic/roughness/AO 등 LDR data texture의 UNORM 선택은 유지한다.
+- Visual Studio 개발자 환경에서 `windows-debug` 컴파일·링크 성공과 `git diff --check` 통과를 확인했다. 임시 1×1 Radiance HDR로 width/height, RGBA32F format, 16-byte size를 검사하는 스모크 테스트도 통과했다.
+- 실제 HDR 환경맵 렌더링과 이번 변경에 대한 validation 출력은 확인하지 않았다. 임시 테스트 소스·HDR·실행 파일은 검증 후 제거했다.
+- 후속 요청으로 `EnvironmentMapGenerator`의 `CreateCubemap` API와 cubemap 소유 골격만 추가하고 `Renderer`가 `EnvironmentMapGenerator`를 소유하도록 연결했다. equirectangular→cubemap 변환 구현과 이번 골격 변경의 빌드·실행 검증은 사용자 요청에 따라 수행하지 않았다.
+- 사용자가 작성한 `EquirectangularToCubemap.hlsl`의 cube-face 방향 매핑을 검토하고, 경도 좌표의 잘못된 `atan2 / PI * 2` 계산을 `atan2 / (2 * PI)`로 수정했다. texture/sampler binding과 face push constant를 명시하고, 사용자가 준비할 descriptor set layout을 인자로 받아 변환용 graphics pipeline과 shader module만 생성하는 `CreateGraphicsPipeline` 골격을 추가했다. Descriptor 생성·write·command binding과 pipeline 함수 호출은 아직 구현하지 않았고 빌드·실행 검증도 수행하지 않았다.
+- equirectangular 변환용 `conversionSampler`를 `EnvironmentMapGenerator` 소유로 추가했다. 경도 경계는 U repeat, 극점 방향은 V/W clamp-to-edge, source HDR의 현재 단일 mip에 맞춰 LOD 0으로 제한했다. one-shot 제출과 두 cubemap transition은 아직 구현하지 않았다.
 
 ### 2026-11-11 입력 변경 — 터치패드용 Orbit
 

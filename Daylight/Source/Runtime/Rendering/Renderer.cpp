@@ -1,7 +1,9 @@
 #include "pch.h"
 #include "Renderer.h"
+#include "EnvironmentMapGenerator.h"
 #include "GPUProfiler.h"
 #include "Core/Paths.h"
+#include "Utils/Image.h"
 
 #include "Graphics/Vulkan/VulkanDevice.h"
 #include "Graphics/Vulkan/VulkanSwapchain.h"
@@ -10,6 +12,7 @@
 #include "Rendering/RenderPass/BlurPass.h"
 #include "Rendering/RenderPass/GeometryPass.h"
 #include "Rendering/RenderPass/ImagePass.h"
+#include "Rendering/RenderPass/SkyPass.h"
 #include "Rendering/RenderPass/ToneMappingPass.h"
 
 namespace Dlight
@@ -27,22 +30,35 @@ namespace Dlight
 
 	void Renderer::Initialize()
 	{
-		//blurPass = std::make_unique<Dlight::BlurPass>(device, resourceManager, shaderCompiler);
-
 		const std::filesystem::path imagePath = Paths::GetAssetPath(L"Image/Test.jpg");
 		testTexture = std::make_unique<TextureResource>("ImageTest", device, imagePath);
-		if (!testTexture->Load())
-		{
-			DL_LOG_ERROR("Failed to load test texture");
-			std::abort();
-		}
+		testTexture->Load();
+
+		//blurPass = std::make_unique<Dlight::BlurPass>(device, resourceManager, shaderCompiler);
 
 		geometryPass = std::make_unique<Dlight::GeometryPass>(device, resourceManager, shaderCompiler);
 		imagePass = std::make_unique<Dlight::ImagePass>(device, resourceManager, shaderCompiler);
 		imagePass->SetTexture(*testTexture);
+
+		PrepareEnvironmentMaps();
+		skyPass = std::make_unique<Dlight::SkyPass>(device, shaderCompiler);
+		skyPass->SetCubemap(*environmentMapGenerator->GetCubemap());
+
 		toneMappingPass = std::make_unique<Dlight::ToneMappingPass>(device, shaderCompiler);
 
 		BuildRenderGraph();
+	}
+
+	void Renderer::PrepareEnvironmentMaps()
+	{
+		environmentMapGenerator = std::make_unique<EnvironmentMapGenerator>(device, shaderCompiler);
+
+		const std::filesystem::path enviornmentHDRPath = Paths::GetAssetPath(L"Image/Environment.hdr");
+		Image environmentHDR(enviornmentHDRPath.string());
+
+		environmentMapGenerator->CreateCubemap(environmentHDR);
+
+
 	}
 
 	void Renderer::BuildRenderGraph()
@@ -54,29 +70,49 @@ namespace Dlight
 			device.GetSwapchain().GetHeight()
 		};
 
-		//const RenderGraphImageHandle sceneColor = AddImagePass(renderExtent);
-		const RenderGraphImageHandle sceneColor = AddGeometryPass(renderExtent);
-
-		//const FBlurGraphOutput blurOutput = AddBlurPass(sceneColor, renderExtent);
+		RenderGraphImageHandle sceneColor = AddSkyPass(renderExtent);
+		sceneColor = AddGeometryPass(sceneColor, renderExtent);
 
 		AddToneMappingPass(sceneColor, renderExtent);
 
 		renderGraph.Compile();
 		toneMappingPass->SetSource(renderGraph.GetImageView(sceneColor));
 
-		//blurPass->SetResources(
-		//	renderGraph.GetImageView(sceneColor),
-		//	renderGraph.GetImageView(blurOutput.temp),
-		//	renderGraph.GetImageView(blurOutput.output));
 	}
 
-	RenderGraphImageHandle Renderer::AddGeometryPass(VkExtent2D renderExtent)
+	RenderGraphImageHandle Renderer::AddSkyPass(VkExtent2D renderExtent)
 	{
-		FVulkanImageDesc sceneColorDesc = {};
-		sceneColorDesc.format = GeometryPass::ColorFormat;
+		FVulkanImageDesc sceneColorDesc{};
+		sceneColorDesc.format = SkyPass::ColorFormat;
 		sceneColorDesc.extent = { renderExtent.width, renderExtent.height, 1 };
 		sceneColorDesc.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 
+		struct FSkyPassData
+		{
+			RenderGraphImageHandle sceneColor;
+		};
+
+		const FSkyPassData skyPassData = renderGraph.AddPass<FSkyPassData>(
+			"SkyPass",
+			[sceneColorDesc](RenderGraph::Builder& builder, FSkyPassData& data)
+			{
+				data.sceneColor = builder.DeclareInternal(sceneColorDesc);
+				data.sceneColor = builder.Write(data.sceneColor, EImageState::ColorAttachmentWrite);
+			},
+			[this, renderExtent](VkCommandBuffer commandBuffer, const FSkyPassData& data)
+			{
+				skyPass->Execute(
+					commandBuffer,
+					renderGraph.GetImageView(data.sceneColor),
+					renderExtent,
+					viewData);
+			});
+
+		return skyPassData.sceneColor;
+	}
+
+	RenderGraphImageHandle Renderer::AddGeometryPass(RenderGraphImageHandle sceneColor, VkExtent2D renderExtent)
+	{
 		FVulkanImageDesc sceneDepthDesc = {};
 		sceneDepthDesc.format = GeometryPass::DepthFormat;
 		sceneDepthDesc.extent = { renderExtent.width, renderExtent.height, 1 };
@@ -90,12 +126,11 @@ namespace Dlight
 
 		const FGeometryPassData geometryPassData = renderGraph.AddPass<FGeometryPassData>(
 			"GeometryPass",
-			[sceneColorDesc, sceneDepthDesc](RenderGraph::Builder& builder, FGeometryPassData& data)
+			[sceneColor, sceneDepthDesc](RenderGraph::Builder& builder, FGeometryPassData& data)
 			{
-				data.sceneColor = builder.DeclareInternal(sceneColorDesc);
 				data.sceneDepth = builder.DeclareInternal(sceneDepthDesc);
 
-				data.sceneColor = builder.Write(data.sceneColor, EImageState::ColorAttachmentWrite);
+				data.sceneColor = builder.Write(sceneColor, EImageState::ColorAttachmentWrite);
 				data.sceneDepth = builder.Write(data.sceneDepth, EImageState::DepthStencilAttachmentWrite);
 			},
 
@@ -230,6 +265,8 @@ namespace Dlight
 		imagePass.reset();
 		blurPass.reset();
 		toneMappingPass.reset();
+		skyPass.reset();
+		environmentMapGenerator.reset();
 
 		testTexture.reset();
 	}

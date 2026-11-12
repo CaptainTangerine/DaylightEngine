@@ -67,7 +67,7 @@ namespace Dlight
 	std::unique_ptr<VulkanImage> TextureResource::CreateImage2D(Image& image)
 	{
 		FVulkanImageDesc imageDesc{};
-		imageDesc.format = GetImageFormat();
+		imageDesc.format = GetImageFormat(image);
 		imageDesc.extent = { static_cast<uint32>(image.GetWidth()), static_cast<uint32>(image.GetHeight()), 1 };
 		imageDesc.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 
@@ -78,7 +78,15 @@ namespace Dlight
 		return gpuImage;
 	}
 
-	VkFormat TextureResource::GetImageFormat() const { return semantic == ETextureSemantic::BaseColor ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM; }
+	VkFormat TextureResource::GetImageFormat(const Image& sourceImage) const
+	{
+		if (sourceImage.GetFormat() != VK_FORMAT_R8G8B8A8_SRGB)
+		{
+			return sourceImage.GetFormat();
+		}
+
+		return semantic == ETextureSemantic::BaseColor ? VK_FORMAT_R8G8B8A8_SRGB : VK_FORMAT_R8G8B8A8_UNORM;
+	}
 
 	EDefaultImage TextureResource::GetDefaultImageType() const
 	{

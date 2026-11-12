@@ -47,7 +47,7 @@ namespace Dlight
 
     private:
         std::unique_ptr<VulkanImage> CreateImage2D(Image& image);
-        VkFormat GetImageFormat() const;
+        VkFormat GetImageFormat(const Image& sourceImage) const;
         EDefaultImage GetDefaultImageType() const;
 
     private:

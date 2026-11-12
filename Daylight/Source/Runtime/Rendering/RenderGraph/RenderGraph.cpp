@@ -2,7 +2,6 @@
 #include "RenderGraph.h"
 #include "Graphics/Vulkan/VulkanDevice.h"
 #include "Graphics/Vulkan/VulkanImage.h"
-#include <cassert>
 
 
 namespace Dlight
@@ -703,8 +702,8 @@ namespace Dlight
 			return;
 		}
 
-		const RenderGraphBufferResource* resource =
-			std::get_if<RenderGraphBufferResource>(&resources[id.index]);
+		const RenderGraphBufferResource* resource = std::get_if<RenderGraphBufferResource>(&resources[id.index]);
+		
 		if (!resource)
 		{
 			return;
