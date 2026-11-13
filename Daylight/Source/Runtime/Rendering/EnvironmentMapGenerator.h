@@ -28,30 +28,60 @@ namespace Dlight
 		bool CreateCubemap(const Image& srcImage);
 		const VulkanImage* GetCubemap() const { return cubemap.get(); }
 
+		bool CreateIrradianceMap();
+		const VulkanImage* GetIrradianceMap() const { return irradianceMap.get(); }
+
 	private:
-		void CreateConversionSampler();
-		bool CreateConversionDescriptorSetLayout();
-		bool CreateConversionDescriptorPool();
-		bool AllocateConversionDescriptorSet();
-		void WriteConversionDescriptorSet(const VulkanImage& sourceTexture);
-		bool CreateConversionGraphicsPipeline(VkDescriptorSetLayout descriptorSetLayout);
-		void ExecuteCubemapConversion(const std::array<VkImageView, 6>& faceViews, uint32 faceSize);
-		void DestroyConversionResources();
+		// EnvironmentCubeMap
+		void CreateCubemapSampler();
+		void CreateCubemapDescriptorSetLayout();
+		void CreateCubemapDescriptorPool();
+		void AllocateCubemapDescriptorSet();
+		void WriteCubemapDescriptorSet(const VulkanImage& sourceTexture);
+		bool CreateCubemapGraphicsPipeline(VkDescriptorSetLayout descriptorSetLayout);
+		void RenderCube();
+		void DestroyCubemapResources();
+
+		// Irradiance Map
+		void CreateIrradianceMapSampler();
+		void CreateIrradianceMapDescriptorSetLayout();
+		void CreateIrradianceMapDescriptorPool();
+		void AllocateIrradianceMapDescriptorSet();
+		void WriteIrradianceMapDescriptorSet(const VulkanImage& sourceCubemap);
+		bool CreateIrradianceMapGraphicsPipeline(VkDescriptorSetLayout descriptorSetLayout);
+		void RenderIrradianceMap();
+		void DestroyIrradianceMapResources();
 
 	private:
 		VulkanDevice& device;
 		ShaderCompiler& shaderCompiler;
 
-		std::unique_ptr<ShaderResource> conversionVertexShader;
-		std::unique_ptr<ShaderResource> conversionFragmentShader;
+		uint32 faceSize = {};
+		uint32 irradianceMapFaceSize = 32;
 
-		VkDescriptorSetLayout conversionDescriptorSetLayout = { VK_NULL_HANDLE };
-		VkDescriptorPool conversionDescriptorPool = { VK_NULL_HANDLE };
-		VkDescriptorSet conversionDescriptorSet = { VK_NULL_HANDLE };
+		// cubemap
+		std::unique_ptr<ShaderResource> cubemapVertexShader;
+		std::unique_ptr<ShaderResource> cubemapFragmentShader;
 
-		std::unique_ptr<VulkanGraphicsPipeline> conversionPipeline;
-		std::unique_ptr<VulkanSampler> conversionSampler;
+		VkDescriptorSetLayout cubemapDescriptorSetLayout = { VK_NULL_HANDLE };
+		VkDescriptorPool cubemapDescriptorPool = { VK_NULL_HANDLE };
+		VkDescriptorSet cubemapDescriptorSet = { VK_NULL_HANDLE };
+
+		std::unique_ptr<VulkanGraphicsPipeline> cubemapPipeline;
+		std::unique_ptr<VulkanSampler> cubemapSampler;
+
+		// irradianceMap
+		std::unique_ptr<ShaderResource> irradianceMapVertexShader;
+		std::unique_ptr<ShaderResource> irradianceMapFragmentShader;
+
+		VkDescriptorSetLayout irradianceMapDescriptorSetLayout = { VK_NULL_HANDLE };
+		VkDescriptorPool irradianceMapDescriptorPool = { VK_NULL_HANDLE };
+		VkDescriptorSet irradianceMapDescriptorSet = { VK_NULL_HANDLE };
+
+		std::unique_ptr<VulkanGraphicsPipeline> irradianceMapPipeline;
+		std::unique_ptr<VulkanSampler> irradianceMapSampler;
 
 		std::unique_ptr<VulkanImage> cubemap;
+		std::unique_ptr<VulkanImage> irradianceMap;
 	};
 }

@@ -21,11 +21,14 @@ namespace Dlight
 		: device(_device), resourceManager(_resourceManager), shaderCompiler(_shaderCompiler)
 	{
 		CreateMesh();
+		CreateDescriptors();
 		CreatePipeline();
 	}
 
 	ImagePass::~ImagePass()
 	{
+		pipeline.reset();
+		DestroyDescriptors();
 	}
 
 	void ImagePass::SetTexture(TextureResource& texture)
@@ -39,7 +42,7 @@ namespace Dlight
 
 		VkWriteDescriptorSet writes[2] = {};
 		writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		writes[0].dstSet = device.GetBindlessSet();
+		writes[0].dstSet = descriptorSet;
 		writes[0].dstBinding = 0;
 		writes[0].dstArrayElement = 0;
 		writes[0].descriptorCount = 1;
@@ -47,8 +50,8 @@ namespace Dlight
 		writes[0].pImageInfo = &textureInfo;
 
 		writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		writes[1].dstSet = device.GetSamplerSet();
-		writes[1].dstBinding = 0;
+		writes[1].dstSet = descriptorSet;
+		writes[1].dstBinding = 1;
 		writes[1].dstArrayElement = 0;
 		writes[1].descriptorCount = 1;
 		writes[1].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
@@ -88,19 +91,13 @@ namespace Dlight
 		scissor.extent = extent;
 		vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
 
-		VkDescriptorSet sets[2] =
-		{
-			device.GetBindlessSet(),
-			device.GetSamplerSet()
-		};
-
 		vkCmdBindDescriptorSets(
 			commandBuffer,
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
 			pipeline->GetPipelineLayout(),
 			0,
-			2,
-			sets,
+			1,
+			&descriptorSet,
 			0,
 			nullptr);
 
@@ -140,6 +137,56 @@ namespace Dlight
 		}
 	}
 
+	void ImagePass::CreateDescriptors()
+	{
+		constexpr uint32 TextureCount = 64;
+
+		std::array<VkDescriptorPoolSize, 2> poolSizes{};
+		poolSizes[0].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+		poolSizes[0].descriptorCount = TextureCount;
+		poolSizes[1].type = VK_DESCRIPTOR_TYPE_SAMPLER;
+		poolSizes[1].descriptorCount = 1;
+
+		VkDescriptorPoolCreateInfo poolInfo{};
+		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		poolInfo.maxSets = 1;
+		poolInfo.poolSizeCount = static_cast<uint32>(poolSizes.size());
+		poolInfo.pPoolSizes = poolSizes.data();
+		vkCreateDescriptorPool(device.GetDevice(), &poolInfo, nullptr, &descriptorPool);
+
+		std::array<VkDescriptorSetLayoutBinding, 2> bindings{};
+		bindings[0].binding = 0;
+		bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+		bindings[0].descriptorCount = TextureCount;
+		bindings[0].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+		bindings[1].binding = 1;
+		bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+		bindings[1].descriptorCount = 1;
+		bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		std::array<VkDescriptorBindingFlags, 2> bindingFlags{};
+		bindingFlags[0] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT;
+
+		VkDescriptorSetLayoutBindingFlagsCreateInfo bindingFlagsInfo{};
+		bindingFlagsInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+		bindingFlagsInfo.bindingCount = static_cast<uint32>(bindingFlags.size());
+		bindingFlagsInfo.pBindingFlags = bindingFlags.data();
+
+		VkDescriptorSetLayoutCreateInfo layoutInfo{};
+		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layoutInfo.pNext = &bindingFlagsInfo;
+		layoutInfo.bindingCount = static_cast<uint32>(bindings.size());
+		layoutInfo.pBindings = bindings.data();
+		vkCreateDescriptorSetLayout(device.GetDevice(), &layoutInfo, nullptr, &descriptorSetLayout);
+
+		VkDescriptorSetAllocateInfo allocateInfo{};
+		allocateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		allocateInfo.descriptorPool = descriptorPool;
+		allocateInfo.descriptorSetCount = 1;
+		allocateInfo.pSetLayouts = &descriptorSetLayout;
+		vkAllocateDescriptorSets(device.GetDevice(), &allocateInfo, &descriptorSet);
+	}
+
 	void ImagePass::CreatePipeline()
 	{
 		const std::filesystem::path shaderPath = Paths::GetShaderPath(L"ImageTest.hlsl");
@@ -163,11 +210,7 @@ namespace Dlight
 		}
 
 		FGraphicsPipelineDesc desc = {};
-		desc.descriptorSetLayouts =
-		{
-			device.GetBindlessLayout(),
-			device.GetSamplerLayout()
-		};
+		desc.descriptorSetLayouts = { descriptorSetLayout };
 		desc.vertexShader = vertexShader->GetModule();
 		desc.fragmentShader = fragmentShader->GetModule();
 		desc.vertexEntryPoint = vertexShader->GetEntryPoint().c_str();
@@ -183,5 +226,22 @@ namespace Dlight
 		desc.depthFormat = VK_FORMAT_UNDEFINED;
 
 		pipeline = std::make_unique<VulkanGraphicsPipeline>(device, desc);
+	}
+
+	void ImagePass::DestroyDescriptors()
+	{
+		if (descriptorPool != VK_NULL_HANDLE)
+		{
+			vkDestroyDescriptorPool(device.GetDevice(), descriptorPool, nullptr);
+			descriptorPool = VK_NULL_HANDLE;
+		}
+
+		descriptorSet = VK_NULL_HANDLE;
+
+		if (descriptorSetLayout != VK_NULL_HANDLE)
+		{
+			vkDestroyDescriptorSetLayout(device.GetDevice(), descriptorSetLayout, nullptr);
+			descriptorSetLayout = VK_NULL_HANDLE;
+		}
 	}
 }

@@ -42,7 +42,8 @@ namespace Dlight
 
 		PrepareEnvironmentMaps();
 		skyPass = std::make_unique<Dlight::SkyPass>(device, shaderCompiler);
-		skyPass->SetCubemap(*environmentMapGenerator->GetCubemap());
+
+		skyPass->SetCubemap(*environmentMapGenerator->GetIrradianceMap());
 
 		toneMappingPass = std::make_unique<Dlight::ToneMappingPass>(device, shaderCompiler);
 
@@ -57,7 +58,7 @@ namespace Dlight
 		Image environmentHDR(enviornmentHDRPath.string());
 
 		environmentMapGenerator->CreateCubemap(environmentHDR);
-
+		environmentMapGenerator->CreateIrradianceMap();
 
 	}
 

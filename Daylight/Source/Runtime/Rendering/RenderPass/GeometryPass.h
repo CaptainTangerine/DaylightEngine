@@ -71,6 +71,7 @@ namespace Dlight
 		std::unique_ptr<ShaderResource> fragmentShaderUnLit;
 		std::unique_ptr<ShaderResource> vertexShaderPBR;
 		std::unique_ptr<ShaderResource> fragmentShaderPBR;
+
 		std::unique_ptr<VulkanGraphicsPipeline> pipelineUnLit;
 		std::unique_ptr<VulkanGraphicsPipeline> pipelinePBR;
 

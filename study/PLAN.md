@@ -1,7 +1,19 @@
 # Vulkan Renderer · 학습 계획
 
-> 갱신: 2026-11-12 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
+> 갱신: 2026-11-13 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
 > 코드 존재, 과거 작업 보고, 현재 빌드/실행·validation 증거를 구분한다.
+
+### 2026-11-13 작업 방향 — Environment map DDS 사전 베이크
+
+- 런타임마다 environment cubemap과 irradiance map을 다시 계산하지 않고, 고품질 설정으로 한 번 생성해 별도 DDS cubemap 두 개로 저장하는 방향을 확정했다. Environment HDR→cubemap 결과와 `sampleDelta = 0.0015` irradiance 결과를 각각 보존한다.
+- 런타임은 DDS cubemap loader를 통해 environment DDS를 SkyPass에, irradiance DDS를 diffuse IBL 입력에 연결한다. DDS 생성·로딩·연결은 아직 구현하지 않았다.
+- 이전 compute 생성 경로와 timestamp benchmark 코드는 제거하고 graphics 생성 경로를 복원했다. 과거 비교 raw 데이터만 `study/environment-map-compute-benchmark.csv`에 보존한다.
+
+### 2026-11-13 사용자 요청 — Irradiance Map 준비 경로
+
+- Cubemap을 입력으로 diffuse irradiance convolution을 수행할 이미지, sampler, descriptor set layout/pool/set/write, graphics pipeline, resource cleanup 경로를 `EnvironmentMapGenerator`에 구현했다.
+- 사용자가 작성한 `RenderIrradianceMap()`과 반구 샘플링 셰이더를 기준으로 tangent sample의 `float3` 생성, scissor 초기화, irradiance pipeline layout push constant, command buffer 제출·완료 대기·임시 view 정리를 보완했다. HLSL에 명시적 set/binding을 넣지 않고 DXC 자동 배치인 set 0의 texture binding 0/sampler binding 1에 C++ layout을 맞췄으며, 별도 Debug 빌드와 NVIDIA GeForce RTX 4060 Ti에서 약 10초 실행 중 관련 shader warning 및 validation warning/error가 없음을 확인했다.
+- Cubemap의 6개 face view 생성·렌더링·해제를 인자 없는 `RenderCube()` 안으로 모았다. Face 크기는 `EnvironmentMapGenerator::faceSize` 멤버를 사용하므로 `CreateCubemap`은 결과 이미지 준비와 렌더 호출만 담당한다.
 
 ### 2026-11-12 사용자 요청 구현·검증 — HDR 이미지 로딩
 
@@ -11,7 +23,7 @@
 - 실제 HDR 환경맵 렌더링과 이번 변경에 대한 validation 출력은 확인하지 않았다. 임시 테스트 소스·HDR·실행 파일은 검증 후 제거했다.
 - 후속 요청으로 `EnvironmentMapGenerator`의 `CreateCubemap` API와 cubemap 소유 골격만 추가하고 `Renderer`가 `EnvironmentMapGenerator`를 소유하도록 연결했다. equirectangular→cubemap 변환 구현과 이번 골격 변경의 빌드·실행 검증은 사용자 요청에 따라 수행하지 않았다.
 - 사용자가 작성한 `EquirectangularToCubemap.hlsl`의 cube-face 방향 매핑을 검토하고, 경도 좌표의 잘못된 `atan2 / PI * 2` 계산을 `atan2 / (2 * PI)`로 수정했다. texture/sampler binding과 face push constant를 명시하고, 사용자가 준비할 descriptor set layout을 인자로 받아 변환용 graphics pipeline과 shader module만 생성하는 `CreateGraphicsPipeline` 골격을 추가했다. Descriptor 생성·write·command binding과 pipeline 함수 호출은 아직 구현하지 않았고 빌드·실행 검증도 수행하지 않았다.
-- equirectangular 변환용 `conversionSampler`를 `EnvironmentMapGenerator` 소유로 추가했다. 경도 경계는 U repeat, 극점 방향은 V/W clamp-to-edge, source HDR의 현재 단일 mip에 맞춰 LOD 0으로 제한했다. one-shot 제출과 두 cubemap transition은 아직 구현하지 않았다.
+- equirectangular→cubemap 생성용 `cubemapSampler`를 `EnvironmentMapGenerator` 소유로 추가했다. 경도 경계는 U repeat, 극점 방향은 V/W clamp-to-edge, source HDR의 현재 단일 mip에 맞춰 LOD 0으로 제한했다. one-shot 제출과 두 cubemap transition은 아직 구현하지 않았다.
 
 ### 2026-11-11 입력 변경 — 터치패드용 Orbit
 

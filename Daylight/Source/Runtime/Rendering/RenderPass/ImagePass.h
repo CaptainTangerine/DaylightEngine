@@ -30,7 +30,9 @@ namespace Dlight
 
 	private:
 		void CreateMesh();
+		void CreateDescriptors();
 		void CreatePipeline();
+		void DestroyDescriptors();
 
 		VulkanDevice& device;
 		ResourceManager& resourceManager;
@@ -54,5 +56,9 @@ namespace Dlight
 		std::unique_ptr<ShaderResource> vertexShader;
 		std::unique_ptr<ShaderResource> fragmentShader;
 		std::unique_ptr<VulkanGraphicsPipeline> pipeline;
+
+		VkDescriptorSetLayout descriptorSetLayout = { VK_NULL_HANDLE };
+		VkDescriptorPool descriptorPool = { VK_NULL_HANDLE };
+		VkDescriptorSet descriptorSet = { VK_NULL_HANDLE };
 	};
 }
