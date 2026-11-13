@@ -23,6 +23,12 @@ float3 FresnelSchlick(float cosTheta, float3 F0)
     return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
 }
 
+float3 FresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
+{
+    float3 roughnessFactor = float3(1.0f - roughness, 1.0f - roughness, 1.0f - roughness);
+    return F0 + (max(roughnessFactor, F0) - F0) * pow(clamp(1.0f - cosTheta, 0.0f, 1.0f), 5.0f);
+}
+
 //  Geometry Function (G)
 float GeometrySchlickGGX(float3 N, float3 V, float roughness)
 {

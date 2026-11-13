@@ -4,6 +4,8 @@
 #include <Volk/volk.h>
 #include <vma/vk_mem_alloc.h>
 
+#include <vector>
+
 #include "Utils/ResourceState.h"
 #include "VulkanSwapchain.h"
 
@@ -67,6 +69,7 @@ namespace Dlight
 	public:
 		// CPU Data -> DeviceLocal
 		void UploadImage(VulkanImage& destination, const void* data, VkDeviceSize byteSize, EImageState finalState);
+		std::vector<uint8> DownloadImage(const VulkanImage& source, VkDeviceSize byteSize, EImageState initialState, EImageState finalState);
 		void UploadBuffer(VulkanBuffer& destination, const void* data, VkDeviceSize size, VkDeviceSize destinationOffset, EBufferState finalState);
 
 	private:

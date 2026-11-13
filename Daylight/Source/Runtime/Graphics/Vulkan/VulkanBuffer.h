@@ -33,6 +33,7 @@ namespace Dlight
 		VkBufferUsageFlags GetUsage() const { return usage; };
 		void* GetMappedData() const { return mappedData; };
 		void FlushAllocation(VkDeviceSize offset, VkDeviceSize flushSize);
+		void InvalidateAllocation(VkDeviceSize offset, VkDeviceSize invalidateSize);
 
 	private:
 		VulkanDevice& device;

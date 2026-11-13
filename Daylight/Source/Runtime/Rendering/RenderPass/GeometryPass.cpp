@@ -33,6 +33,40 @@ namespace Dlight
 		DestroyUniformResources();
 	}
 
+	void GeometryPass::SetIrradianceMap(const VulkanImage& irradianceMap)
+	{
+		VkDescriptorImageInfo irradianceMapInfo{};
+		irradianceMapInfo.imageView = irradianceMap.GetImageView();
+		irradianceMapInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+		VkDescriptorImageInfo irradianceSamplerInfo{};
+		irradianceSamplerInfo.sampler = irradianceSampler->GetSampler();
+
+		for (VkDescriptorSet descriptorSet : descriptorSets)
+		{
+			std::array<VkWriteDescriptorSet, 2> writes{};
+			writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writes[0].dstSet = descriptorSet;
+			writes[0].dstBinding = IrradianceTextureBinding;
+			writes[0].descriptorCount = 1;
+			writes[0].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+			writes[0].pImageInfo = &irradianceMapInfo;
+			writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+			writes[1].dstSet = descriptorSet;
+			writes[1].dstBinding = IrradianceSamplerBinding;
+			writes[1].descriptorCount = 1;
+			writes[1].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+			writes[1].pImageInfo = &irradianceSamplerInfo;
+
+			vkUpdateDescriptorSets(
+				device.GetDevice(),
+				static_cast<uint32>(writes.size()),
+				writes.data(),
+				0,
+				nullptr);
+		}
+	}
+
 	void GeometryPass::Execute(
 		VkCommandBuffer commandBuffer,
 		VkImageView sceneColorView,
@@ -101,7 +135,7 @@ namespace Dlight
 
 	void GeometryPass::CreateUniformResources()
 	{
-		std::array<VkDescriptorSetLayoutBinding, MaterialSamplerBinding + 1> bindings = {};
+		std::array<VkDescriptorSetLayoutBinding, IrradianceSamplerBinding + 1> bindings = {};
 		
 		bindings[0].binding = 0;
 		bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -127,6 +161,16 @@ namespace Dlight
 		bindings[MaterialSamplerBinding].descriptorCount = 1;
 		bindings[MaterialSamplerBinding].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
 
+		bindings[IrradianceTextureBinding].binding = IrradianceTextureBinding;
+		bindings[IrradianceTextureBinding].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+		bindings[IrradianceTextureBinding].descriptorCount = 1;
+		bindings[IrradianceTextureBinding].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+		bindings[IrradianceSamplerBinding].binding = IrradianceSamplerBinding;
+		bindings[IrradianceSamplerBinding].descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+		bindings[IrradianceSamplerBinding].descriptorCount = 1;
+		bindings[IrradianceSamplerBinding].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
 		VkDescriptorSetLayoutCreateInfo layoutInfo = {};
 		layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
 		layoutInfo.bindingCount = static_cast<uint32>(bindings.size());
@@ -148,9 +192,9 @@ namespace Dlight
 		poolSizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 		poolSizes[0].descriptorCount = frameCount * 2;
 		poolSizes[1].type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-		poolSizes[1].descriptorCount = frameCount * MaterialTextureCount;
+		poolSizes[1].descriptorCount = frameCount * (MaterialTextureCount + 1);
 		poolSizes[2].type = VK_DESCRIPTOR_TYPE_SAMPLER;
-		poolSizes[2].descriptorCount = frameCount;
+		poolSizes[2].descriptorCount = frameCount * 2;
 
 		VkDescriptorPoolCreateInfo poolInfo{};
 		poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -191,6 +235,18 @@ namespace Dlight
 
 		viewUniformBuffers.reserve(frameCount);
 		lightUniformBuffers.reserve(frameCount);
+
+		VkSamplerCreateInfo irradianceSamplerInfo{};
+		irradianceSamplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		irradianceSamplerInfo.magFilter = VK_FILTER_LINEAR;
+		irradianceSamplerInfo.minFilter = VK_FILTER_LINEAR;
+		irradianceSamplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+		irradianceSamplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		irradianceSamplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		irradianceSamplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		irradianceSamplerInfo.minLod = 0.0f;
+		irradianceSamplerInfo.maxLod = 0.0f;
+		irradianceSampler = std::make_unique<VulkanSampler>(device, irradianceSamplerInfo);
 
 		for (uint32 frameSlot = 0; frameSlot < frameCount; ++frameSlot)
 		{
@@ -280,7 +336,7 @@ namespace Dlight
 		const FLightUniform lightUniform =
 		{
 			{
-				Vector4(0.0f, 5.0f, 5.0f, 1.0f),
+				Vector4(0.0f, 5.0f, -5.0f, 1.0f),
 				Vector4(-5.0f, 0.0f, 0.0f, 1.0f),
 				Vector4(5.0f, 0.0f, 0.0f, 1.0f),
 				Vector4(0.0f, -5.0f, 0.0f, 1.0f)
@@ -363,12 +419,12 @@ namespace Dlight
 
 	void GeometryPass::CreateImages()
 	{
-		albedoMap = std::make_unique<TextureResource>("GoldNugget.Albedo", device, Paths::GetAssetPath(L"Model/gold-nugget-ue/gold-nugget1_albedo.png"), ETextureSemantic::BaseColor);
-		normalMap = std::make_unique<TextureResource>("GoldNugget.Normal", device, Paths::GetAssetPath(L"Model/gold-nugget-ue/gold-nugget1_normal-dx.png"), ETextureSemantic::Normal);
-		heightMap = std::make_unique<TextureResource>("GoldNugget.Height", device, Paths::GetAssetPath(L"Model/gold-nugget-ue/gold-nugget1_height.png"), ETextureSemantic::Height);
-		metallicMap = std::make_unique<TextureResource>("GoldNugget.Metallic", device, Paths::GetAssetPath(L"Model/gold-nugget-ue/gold-nugget1_metallic.png"), ETextureSemantic::Metallic);
-		roughnessMap = std::make_unique<TextureResource>("GoldNugget.Roughness", device, Paths::GetAssetPath(L"Model/gold-nugget-ue/gold-nugget1_roughness.png"), ETextureSemantic::Roughness);
-		ambientOcclusionMap = std::make_unique<TextureResource>("GoldNugget.AmbientOcclusion", device, Paths::GetAssetPath(L"Model/gold-nugget-ue/gold-nugget1_ao.png"), ETextureSemantic::AmbientOcclusion);
+		albedoMap = std::make_unique<TextureResource>("SofaFabric.Albedo", device, Paths::GetAssetPath(L"Model/rough-sofa-fabric-ue/rough-sofa-fabric_albedo.png"), ETextureSemantic::BaseColor);
+		normalMap = std::make_unique<TextureResource>("SofaFabric.Normal", device, Paths::GetAssetPath(L"Model/rough-sofa-fabric-ue/rough-sofa-fabric_normal-dx.png"), ETextureSemantic::Normal);
+		heightMap = std::make_unique<TextureResource>("SofaFabric.Height", device, Paths::GetAssetPath(L"Model/rough-sofa-fabric-ue/rough-sofa-fabric_height.png"), ETextureSemantic::Height);
+		metallicMap = std::make_unique<TextureResource>("SofaFabric.Metallic", device, Paths::GetAssetPath(L"Model/rough-sofa-fabric-ue/rough-sofa-fabric_metallic.png"), ETextureSemantic::Metallic);
+		roughnessMap = std::make_unique<TextureResource>("SofaFabric.Roughness", device, Paths::GetAssetPath(L"Model/rough-sofa-fabric-ue/rough-sofa-fabric_roughness.png"), ETextureSemantic::Roughness);
+		ambientOcclusionMap = std::make_unique<TextureResource>("SofaFabric.AmbientOcclusion", device, Paths::GetAssetPath(L"Model/rough-sofa-fabric-ue/rough-sofa-fabric_ao.png"), ETextureSemantic::AmbientOcclusion);
 
 		const std::array<TextureResource*, MaterialTextureCount> materialTextures = { albedoMap.get(), normalMap.get(), heightMap.get(), metallicMap.get(), roughnessMap.get(), ambientOcclusionMap.get() };
 

@@ -70,6 +70,8 @@ Dlight::VulkanImage::VulkanImage(
 	, format(desc.format)
 	, width(desc.extent.width)
 	, height(desc.extent.height)
+	, mipLevels(desc.mipLevels)
+	, arrayLayers(desc.arrayLayers)
 	, usage(desc.usage)
 {
 	if (desc.extent.width == 0 || desc.extent.height == 0 ||

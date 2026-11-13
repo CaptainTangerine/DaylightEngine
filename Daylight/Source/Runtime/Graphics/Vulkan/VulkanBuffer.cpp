@@ -56,4 +56,19 @@ namespace Dlight
             std::abort();
         }
     }
+
+	void VulkanBuffer::InvalidateAllocation(VkDeviceSize offset, VkDeviceSize invalidateSize)
+	{
+		if (offset + invalidateSize > size)
+		{
+			DL_LOG_ERROR("VulkanBuffer invalidate range is out of bounds");
+			std::abort();
+		}
+
+		if (VK_SUCCESS != vmaInvalidateAllocation(device.GetVmaAllocator(), allocation, offset, invalidateSize))
+		{
+			DL_LOG_ERROR("Failed to invalidate VulkanBuffer allocation");
+			std::abort();
+		}
+	}
 }

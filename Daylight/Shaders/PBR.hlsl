@@ -1,5 +1,6 @@
 #include "Common/VertexInput.hlsli"
 #include "Common/BRDF.hlsli"
+#include "Common/ParallaxMapping.hlsli"
 #include "Common/PerView.hlsli"
 
 struct LightUniform
@@ -29,6 +30,8 @@ Texture2D<float4> roughnessTexture;
 Texture2D<float4> ambientOcclusionTexture;
 
 SamplerState materialSampler;
+TextureCube<float4> irradianceMap;
+SamplerState irradianceSampler;
 
 struct VSOutput
 {
@@ -40,40 +43,6 @@ struct VSOutput
     float3 tangentViewPosition : Position1;
     float3 tangentLightPosition[4] : Position2;
 };
-
-float2 ParallaxMapping(float2 texcoords, float3 tangentViewDir)
-{
-    const float minLayers = 8.0f;
-    const float maxLayers = 32.0f;
-    float numLayers = lerp(maxLayers, minLayers, saturate(dot(float3(0.0f, 0.0f, 1.0f), tangentViewDir)));
-    float layerDepth = 1.0f / numLayers;
-
-    const float heightScale = 0.02f;
-
-    float viewZ = saturate(tangentViewDir.z);
-    float safeViewZ = max(viewZ, 0.1f);
-
-    float2 p = tangentViewDir.xy / safeViewZ * heightScale;
-    float2 deltaTexcoord = p / numLayers;
-    
-    float currentLayerDepth = 0.0;
-    float currentDepthMapValue = 1.0f - heightTexture.Sample(materialSampler, texcoords).r;
-    
-    while (currentLayerDepth < currentDepthMapValue)
-    {
-        texcoords -= deltaTexcoord;
-        currentDepthMapValue = 1.0f - heightTexture.Sample(materialSampler, texcoords).r;
-
-        currentLayerDepth += layerDepth;
-    }
-
-    float2 previousTexcoords = texcoords + deltaTexcoord;
-    float afterDepth = currentDepthMapValue - currentLayerDepth;
-    float beforeDepth = 1.0f - heightTexture.Sample(materialSampler, previousTexcoords).r - currentLayerDepth + layerDepth;
-    float weight = saturate(afterDepth / (afterDepth - beforeDepth));
-
-    return lerp(texcoords, previousTexcoords, weight);
-}
 
 VSOutput VS_Main(VSInput input)
 {
@@ -112,7 +81,7 @@ float4 PS_Main(VSOutput input) : SV_Target0
     
     float3 V = normalize(input.tangentViewPosition - input.tangentWorldPosition);
     
-    float2 displacedTexCoord = ParallaxMapping(input.texcoord, V);
+    float2 displacedTexCoord = ParallaxMapping(heightTexture, materialSampler, input.texcoord, V);
  
     float3 N = normalTexture.Sample(materialSampler, displacedTexCoord).xyz * 2.0f - 1.0f;
     N = normalize(N);
@@ -153,7 +122,12 @@ float4 PS_Main(VSOutput input) : SV_Target0
         Lo += (kd * baseColor / PI + specular) * radiance * NdotL;
     }
     
-    float3 ambient = float3(0.03f, 0.03f, 0.03f) * baseColor * ao;
+
+    float3 kS = FresnelSchlickRoughness(max(dot(N, V), 0.f), F0, roughness);
+    float3 kD = (1.0f - kS);
+    float3 irradiance = irradianceMap.SampleLevel(irradianceSampler, N, 0).rgb;
+    float3 diffuse = irradiance * baseColor;
+    float3 ambient = (kD * diffuse) * ao;
     float3 color = ambient + Lo;
    
     return float4(color, 1.f);

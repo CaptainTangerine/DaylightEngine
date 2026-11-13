@@ -322,7 +322,7 @@ namespace Dlight
 		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		region.imageSubresource.mipLevel = 0;
 		region.imageSubresource.baseArrayLayer = 0;
-		region.imageSubresource.layerCount = 1;
+		region.imageSubresource.layerCount = destination.GetArrayLayers();
 
 		region.imageOffset = { 0, 0, 0 };
 		region.imageExtent = {
@@ -365,6 +365,100 @@ namespace Dlight
 		vkDestroyCommandPool(device, commandPool, nullptr);
 	}
 
+	std::vector<uint8> VulkanDevice::DownloadImage(
+		const VulkanImage& source,
+		VkDeviceSize byteSize,
+		EImageState initialState,
+		EImageState finalState)
+	{
+		if (byteSize == 0 || !(source.GetUsage() & VK_IMAGE_USAGE_TRANSFER_SRC_BIT))
+		{
+			DL_LOG_ERROR("Invalid image download request");
+			std::abort();
+		}
+
+		FVulkanBufferDesc stagingDesc{};
+		stagingDesc.size = byteSize;
+		stagingDesc.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		stagingDesc.memoryUsage = VMA_MEMORY_USAGE_AUTO;
+		stagingDesc.allocationFlags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT | VMA_ALLOCATION_CREATE_MAPPED_BIT;
+		VulkanBuffer stagingBuffer(*this, stagingDesc);
+
+		if (!stagingBuffer.GetMappedData())
+		{
+			DL_LOG_ERROR("Image download staging buffer is not mapped");
+			std::abort();
+		}
+
+		VkCommandPool commandPool = VK_NULL_HANDLE;
+		VkCommandPoolCreateInfo poolInfo{};
+		poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+		poolInfo.flags = VK_COMMAND_POOL_CREATE_TRANSIENT_BIT;
+		poolInfo.queueFamilyIndex = gfxAndComputeQueueFamilyIndex;
+		if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
+		{
+			DL_LOG_ERROR("Failed to create image download command pool");
+			std::abort();
+		}
+
+		VkCommandBuffer commandBuffer = VK_NULL_HANDLE;
+		VkCommandBufferAllocateInfo allocateInfo{};
+		allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+		allocateInfo.commandPool = commandPool;
+		allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+		allocateInfo.commandBufferCount = 1;
+		if (vkAllocateCommandBuffers(device, &allocateInfo, &commandBuffer) != VK_SUCCESS)
+		{
+			DL_LOG_ERROR("Failed to allocate image download command buffer");
+			std::abort();
+		}
+
+		VkCommandBufferBeginInfo beginInfo{};
+		beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+		vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+		TransitionImage(commandBuffer, source, initialState, EImageState::CopySource);
+
+		VkBufferImageCopy region{};
+		region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		region.imageSubresource.mipLevel = 0;
+		region.imageSubresource.baseArrayLayer = 0;
+		region.imageSubresource.layerCount = source.GetArrayLayers();
+		region.imageExtent = { source.GetWidth(), source.GetHeight(), 1 };
+		vkCmdCopyImageToBuffer(
+			commandBuffer,
+			source.GetImage(),
+			VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			stagingBuffer.GetBuffer(),
+			1,
+			&region);
+
+		TransitionImage(commandBuffer, source, EImageState::CopySource, finalState);
+		vkEndCommandBuffer(commandBuffer);
+
+		VkCommandBufferSubmitInfo commandSubmitInfo{};
+		commandSubmitInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO;
+		commandSubmitInfo.commandBuffer = commandBuffer;
+
+		VkSubmitInfo2 submitInfo{};
+		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO_2;
+		submitInfo.commandBufferInfoCount = 1;
+		submitInfo.pCommandBufferInfos = &commandSubmitInfo;
+		if (vkQueueSubmit2(gfxQueue, 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS ||
+			vkQueueWaitIdle(gfxQueue) != VK_SUCCESS)
+		{
+			DL_LOG_ERROR("Failed to execute image download");
+			std::abort();
+		}
+
+		stagingBuffer.InvalidateAllocation(0, byteSize);
+		std::vector<uint8> data(static_cast<size_t>(byteSize));
+		std::memcpy(data.data(), stagingBuffer.GetMappedData(), data.size());
+		vkDestroyCommandPool(device, commandPool, nullptr);
+		return data;
+	}
+
 	void VulkanDevice::TransitionImage(VkCommandBuffer commandBuffer, const VulkanImage& image, EImageState srcState, EImageState dstState)
 	{
 		VkImageMemoryBarrier2 barrier = {};
@@ -393,9 +487,9 @@ namespace Dlight
 
 		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
 		barrier.subresourceRange.baseMipLevel = 0;
-		barrier.subresourceRange.levelCount = 1;
+		barrier.subresourceRange.levelCount = image.GetMipLevels();
 		barrier.subresourceRange.baseArrayLayer = 0;
-		barrier.subresourceRange.layerCount = 1;
+		barrier.subresourceRange.layerCount = image.GetArrayLayers();
 
 		VkDependencyInfo depInfo = {};
 		depInfo.sType = VK_STRUCTURE_TYPE_DEPENDENCY_INFO;

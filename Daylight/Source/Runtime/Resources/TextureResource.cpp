@@ -35,7 +35,7 @@ namespace Dlight
 			}
 		}
 
-		if (!image)
+		if (!image && !imagePath.empty())
 		{
 			DL_LOG_WARN("Using default texture for resource: ", GetID(), " (", imagePath.string(), ")");
 		}

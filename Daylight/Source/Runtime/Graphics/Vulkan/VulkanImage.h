@@ -57,6 +57,8 @@ namespace Dlight
 		VkFormat GetFormat() const { return format; };
 		uint32 GetWidth() const { return width; };
 		uint32 GetHeight() const { return height; };
+		uint32 GetMipLevels() const { return mipLevels; };
+		uint32 GetArrayLayers() const { return arrayLayers; };
 
 	private:
 		VulkanDevice& device;
@@ -68,6 +70,8 @@ namespace Dlight
 		VkFormat format = {};
 		uint32 width = {};
 		uint32 height = {};
+		uint32 mipLevels = {};
+		uint32 arrayLayers = {};
 		VkImageUsageFlags usage = {};
 
 		static std::unique_ptr<VulkanImage> whiteDefaultImage;

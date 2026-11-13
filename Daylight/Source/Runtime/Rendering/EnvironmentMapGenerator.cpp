@@ -5,6 +5,7 @@
 #include "Rendering/ShaderCompiler.h"
 #include "Rendering/ShaderConventions.h"
 #include "Resources/ShaderResource.h"
+#include "Utils/DDSCubemap.h"
 #include "Utils/Image.h"
 
 #include "Graphics/Vulkan/VulkanImage.h"
@@ -25,6 +26,41 @@ namespace Dlight
 		DestroyCubemapResources();
 		irradianceMap.reset();
 		cubemap.reset();
+	}
+
+	bool EnvironmentMapGenerator::LoadEnvironmentMaps(
+		const std::filesystem::path& cubemapPath,
+		const std::filesystem::path& irradianceMapPath)
+	{
+		auto loadedCubemap = DDSCubemap::Load(device, cubemapPath);
+		auto loadedIrradianceMap = DDSCubemap::Load(device, irradianceMapPath);
+		if (!loadedCubemap || !loadedIrradianceMap)
+		{
+			return false;
+		}
+
+		DestroyIrradianceMapResources();
+		DestroyCubemapResources();
+		cubemap = std::move(loadedCubemap);
+		irradianceMap = std::move(loadedIrradianceMap);
+		faceSize = cubemap->GetWidth();
+		irradianceMapFaceSize = irradianceMap->GetWidth();
+		DL_LOG_INFO("Loaded environment DDS cubemaps");
+		return true;
+	}
+
+	bool EnvironmentMapGenerator::SaveEnvironmentMaps(
+		const std::filesystem::path& cubemapPath,
+		const std::filesystem::path& irradianceMapPath) const
+	{
+		if (!cubemap || !irradianceMap)
+		{
+			DL_LOG_ERROR("Environment maps must exist before saving DDS files");
+			return false;
+		}
+
+		return DDSCubemap::Save(device, *cubemap, cubemapPath) &&
+			DDSCubemap::Save(device, *irradianceMap, irradianceMapPath);
 	}
 
 	bool EnvironmentMapGenerator::CreateCubemap(const Image& srcImage)
@@ -50,7 +86,7 @@ namespace Dlight
 		cubemapDesc.arrayLayers = 6;
 		cubemapDesc.samples = VK_SAMPLE_COUNT_1_BIT;
 		cubemapDesc.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
-		cubemapDesc.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		cubemapDesc.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 		cubemap = std::make_unique<VulkanImage>(device, cubemapDesc);
 
 		FVulkanImageDesc desc = {};
@@ -107,7 +143,7 @@ namespace Dlight
 		irradianceMapDesc.arrayLayers = 6;
 		irradianceMapDesc.samples = VK_SAMPLE_COUNT_1_BIT;
 		irradianceMapDesc.flags = VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
-		irradianceMapDesc.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+		irradianceMapDesc.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
 		irradianceMap = std::make_unique<VulkanImage>(device, irradianceMapDesc);
 
 		CreateIrradianceMapSampler();

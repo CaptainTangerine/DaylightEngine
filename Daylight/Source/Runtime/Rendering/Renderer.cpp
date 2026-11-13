@@ -41,9 +41,10 @@ namespace Dlight
 		imagePass->SetTexture(*testTexture);
 
 		PrepareEnvironmentMaps();
+		geometryPass->SetIrradianceMap(*environmentMapGenerator->GetIrradianceMap());
 		skyPass = std::make_unique<Dlight::SkyPass>(device, shaderCompiler);
 
-		skyPass->SetCubemap(*environmentMapGenerator->GetIrradianceMap());
+		skyPass->SetCubemap(*environmentMapGenerator->GetCubemap());
 
 		toneMappingPass = std::make_unique<Dlight::ToneMappingPass>(device, shaderCompiler);
 
@@ -54,12 +55,23 @@ namespace Dlight
 	{
 		environmentMapGenerator = std::make_unique<EnvironmentMapGenerator>(device, shaderCompiler);
 
+		const std::filesystem::path cubemapDDSPath = Paths::GetAssetPath(L"Image/EnvironmentCubemap.dds");
+		const std::filesystem::path irradianceDDSPath = Paths::GetAssetPath(L"Image/EnvironmentIrradiance.dds");
+		if (environmentMapGenerator->LoadEnvironmentMaps(cubemapDDSPath, irradianceDDSPath))
+		{
+			return;
+		}
+
 		const std::filesystem::path enviornmentHDRPath = Paths::GetAssetPath(L"Image/Environment.hdr");
 		Image environmentHDR(enviornmentHDRPath.string());
 
-		environmentMapGenerator->CreateCubemap(environmentHDR);
-		environmentMapGenerator->CreateIrradianceMap();
-
+		if (!environmentMapGenerator->CreateCubemap(environmentHDR) ||
+			!environmentMapGenerator->CreateIrradianceMap() ||
+			!environmentMapGenerator->SaveEnvironmentMaps(cubemapDDSPath, irradianceDDSPath))
+		{
+			DL_LOG_ERROR("Failed to prepare environment maps");
+			std::abort();
+		}
 	}
 
 	void Renderer::BuildRenderGraph()

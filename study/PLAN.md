@@ -3,11 +3,26 @@
 > 갱신: 2026-11-13 (Asia/Seoul). 학습 상태의 단일 기준은 이 파일이다.
 > 코드 존재, 과거 작업 보고, 현재 빌드/실행·validation 증거를 구분한다.
 
+### 2026-11-13 구현·검증 — Sofa Fabric 재질 교체
+
+- 저장소에 sofa mesh 자산은 없으므로 GeometryPass의 sphere geometry는 유지하고, 재질을 `rough-sofa-fabric-ue`의 albedo, normal-dx, height, metallic, roughness, AO 텍스처로 교체했다.
+- 런타임 파일 복사는 개별 재질 폴더가 아닌 전체 `Asset/Model` 폴더를 대상으로 하므로 Sofa Fabric 자산도 실행 디렉터리에 배치된다.
+- 초기 카메라가 -Z에 있는 상태에서 키라이트가 구 뒤쪽인 +Z에 있어 중앙 암부가 아티팩트처럼 보이던 문제를 줄이기 위해 첫 조명을 `(0, 5, -5)`로 옮겼다.
+- Debug 빌드·링크와 NVIDIA GeForce RTX 4060 Ti 실행을 확인했다. Sofa Fabric 여섯 파일이 기본 텍스처 대체 경고 없이 로드됐으며 관련 validation warning/error는 없었다.
+
+### 2026-11-13 구현·검증 — PBR irradiance descriptor 바인딩
+
+- `GeometryPass`의 기존 set 0에 irradiance cubemap sampled image(binding 9)와 전용 linear clamp sampler(binding 10)를 추가하고, 모든 frame descriptor set에 `EnvironmentMapGenerator::GetIrradianceMap()`의 DDS image view를 기록했다.
+- `PBR.hlsl`의 기존 리소스 선언 다음에 `TextureCube<float4> irradianceMap`과 `SamplerState irradianceSampler` 입력을 추가해 현재 자동 배치 순서인 binding 9/10과 맞췄다. `FresnelSchlickRoughness`로 roughness-aware `kS/kD`를 계산하고 irradiance diffuse와 AO를 조합하는 ambient 식을 적용했다.
+- `PBR.hlsl`의 parallax mapping 구현을 `Common/ParallaxMapping.hlsli`로 분리했다. 재사용 시 전역 선언 순서에 의존하지 않도록 height texture와 sampler를 함수 인자로 전달하며 계산식은 유지했다.
+- Visual Studio 개발자 환경의 Debug 빌드·링크에 성공했다. NVIDIA GeForce RTX 4060 Ti에서 DDS 로드 후 약 10초 렌더링하며 관련 validation warning/error가 없음을 확인했다.
+
 ### 2026-11-13 작업 방향 — Environment map DDS 사전 베이크
 
-- 런타임마다 environment cubemap과 irradiance map을 다시 계산하지 않고, 고품질 설정으로 한 번 생성해 별도 DDS cubemap 두 개로 저장하는 방향을 확정했다. Environment HDR→cubemap 결과와 `sampleDelta = 0.0015` irradiance 결과를 각각 보존한다.
-- 런타임은 DDS cubemap loader를 통해 environment DDS를 SkyPass에, irradiance DDS를 diffuse IBL 입력에 연결한다. DDS 생성·로딩·연결은 아직 구현하지 않았다.
-- 이전 compute 생성 경로와 timestamp benchmark 코드는 제거하고 graphics 생성 경로를 복원했다. 과거 비교 raw 데이터만 `study/environment-map-compute-benchmark.csv`에 보존한다.
+- Environment HDR→cubemap 결과를 `EnvironmentCubemap.dds`, `sampleDelta = 0.0015` irradiance 결과를 `EnvironmentIrradiance.dds`로 생성했다. 두 파일은 DX10 DDS cubemap, `R16G16B16A16_FLOAT`, mip 1개이며 각각 1024×1024×6과 32×32×6이다.
+- `DDSCubemap` loader/writer와 6-layer Vulkan upload/readback을 구현했다. DDS 두 개가 있으면 HDR 변환과 irradiance 적분을 건너뛰고 바로 cube image로 올리며, 없거나 유효하지 않으면 graphics 생성 후 DDS를 저장한다.
+- SkyPass는 environment DDS cubemap을 사용한다. Irradiance DDS도 `EnvironmentMapGenerator::GetIrradianceMap()`으로 로드·소유되어 diffuse IBL 연결에 사용할 수 있다.
+- Debug 빌드·링크, 최초 DDS 두 개 생성, 재실행에서 `Loaded environment DDS cubemaps` 경로, RTX 4060 Ti validation 무경고/무오류를 확인했다. 이전 compute 생성 경로와 timestamp benchmark 코드는 제거했으며 과거 비교 raw 데이터만 `study/environment-map-compute-benchmark.csv`에 보존한다.
 
 ### 2026-11-13 사용자 요청 — Irradiance Map 준비 경로
 

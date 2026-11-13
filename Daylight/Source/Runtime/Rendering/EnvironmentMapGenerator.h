@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <filesystem>
 
 #include "Graphics/Vulkan/VulkanDevice.h"
 
@@ -30,6 +31,9 @@ namespace Dlight
 
 		bool CreateIrradianceMap();
 		const VulkanImage* GetIrradianceMap() const { return irradianceMap.get(); }
+
+		bool LoadEnvironmentMaps(const std::filesystem::path& cubemapPath, const std::filesystem::path& irradianceMapPath);
+		bool SaveEnvironmentMaps(const std::filesystem::path& cubemapPath, const std::filesystem::path& irradianceMapPath) const;
 
 	private:
 		// EnvironmentCubeMap

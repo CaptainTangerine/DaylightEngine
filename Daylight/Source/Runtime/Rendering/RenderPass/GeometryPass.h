@@ -17,6 +17,8 @@ namespace Dlight
 	class VulkanBuffer;
 	class VulkanDevice;
 	class VulkanGraphicsPipeline;
+	class VulkanImage;
+	class VulkanSampler;
 	
 	class GeometryPass
 	{
@@ -33,6 +35,7 @@ namespace Dlight
 		GeometryPass(VulkanDevice& device, ResourceManager& resourceManager, ShaderCompiler& shaderCompiler);
 		~GeometryPass();
 
+		void SetIrradianceMap(const VulkanImage& irradianceMap);
 		void Execute(
 			VkCommandBuffer commandBuffer,
 			VkImageView sceneColorView,
@@ -44,6 +47,8 @@ namespace Dlight
 		static constexpr uint32 MaterialTextureBinding = 2;
 		static constexpr uint32 MaterialTextureCount = 6;
 		static constexpr uint32 MaterialSamplerBinding = MaterialTextureBinding + MaterialTextureCount;
+		static constexpr uint32 IrradianceTextureBinding = MaterialSamplerBinding + 1;
+		static constexpr uint32 IrradianceSamplerBinding = IrradianceTextureBinding + 1;
 
 		void CreateUniformResources();
 		void DestroyUniformResources();
@@ -66,6 +71,7 @@ namespace Dlight
 
 		std::vector<std::unique_ptr<VulkanBuffer>> viewUniformBuffers;
 		std::vector<std::unique_ptr<VulkanBuffer>> lightUniformBuffers;
+		std::unique_ptr<VulkanSampler> irradianceSampler;
 
 		std::unique_ptr<ShaderResource> vertexShaderUnLit;
 		std::unique_ptr<ShaderResource> fragmentShaderUnLit;

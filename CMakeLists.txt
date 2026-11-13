@@ -146,8 +146,8 @@ add_custom_target(DaylightRuntimeFiles
         "$<TARGET_FILE_DIR:Daylight>/Assets/Image"
 
     COMMAND "${CMAKE_COMMAND}" -E copy_directory
-        "${CMAKE_CURRENT_SOURCE_DIR}/Daylight/Asset/Model/gold-nugget-ue"
-        "$<TARGET_FILE_DIR:Daylight>/Assets/Model/gold-nugget-ue"
+        "${CMAKE_CURRENT_SOURCE_DIR}/Daylight/Asset/Model"
+        "$<TARGET_FILE_DIR:Daylight>/Assets/Model"
 
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different
         "${CMAKE_CURRENT_SOURCE_DIR}/Daylight/Icon.png"
